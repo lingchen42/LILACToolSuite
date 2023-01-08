@@ -9,3 +9,4 @@ Flask-WTF
 Flask-Session
 plotly
 moviepy
+XlsxWriter
