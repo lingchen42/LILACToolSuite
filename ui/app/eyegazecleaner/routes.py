@@ -435,6 +435,7 @@ def compare_two():
         columns = session.get("compare_two_columns_%s_%s"%(coder1_id, coder2_id), [])
         diff_col_indices = session.get("compare_two_diffindies_%s_%s"%(coder1_id, coder2_id), [])
         if not (len(records) and len(columns) and len(diff_col_indices)):
+            # recompute summary records
             coder1_summary_records = session.get("%s_summary_records"%coder1_id, [])
             coder2_summary_records = session.get("%s_summary_records"%coder2_id, [])
             if not len(coder1_summary_records):
@@ -531,36 +532,107 @@ def compare_three():
     status_df = pd.DataFrame.from_dict(status_records)
     files = list(status_df["Filename"].values)
     form = CompareThreeInput(files=files)
-    columns = []
-    records = []
+    styled_df_html = "To be generated"
     coder1 = session.get('eyegazercleaner_code1')
     coder1_id = session.get('eyegazercleaner_code1_id')
+    coder1_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder1_id)
     coder2 = session.get('eyegazercleaner_code2')
     coder2_id = session.get('eyegazercleaner_code2_id')
-    if not (coder1 and coder2 and coder1_id and coder2_id):
+    coder12_compair_records \
+        = session.get("compare_two_records_%s_%s"%(coder1_id, coder2_id), [])
+    if not (coder1 and coder2 and coder1_id and coder2_id \
+            and len(coder12_compair_records)):
         return render_template("error.html",
                 message="Please run Pair Compare for Coder 1 and Coder 2 first")
-    
+
     if request.method == "GET":
         setattr(getattr(form, "coder1"), "data", coder1)
         setattr(getattr(form, "coder1_id"), "data", coder1_id)
         setattr(getattr(form, "coder2"), "data", coder2)
         setattr(getattr(form, "coder2_id"), "data", coder2_id)
+        coder3 = session.get('eyegazercleaner_code3')
+        if coder3 is not None:
+           setattr(getattr(form, "coder3"), "data", coder3) 
+        coder3_id = session.get('eyegazercleaner_code3_id')
+        if coder3_id is not None:
+           setattr(getattr(form, "coder3_id"), "data", coder3_id) 
 
     if form.validate_on_submit():
         coder3 = form.coder3.data
-        if coder3 in [coder1, coder2]:
-            return render_template("error.html", 
-                                    message="Coder 3 must be different from "\
-                                            "Coder1 and Coder2's files")
+        coder3_id = status_df[status_df["Filename"] == coder3]["ID"].values[0]
+        form.coder3_id.data = coder3_id
+        session['eyegazercleaner_code3'] = coder3 
+        session['eyegazercleaner_code3_id'] = coder3_id
+        coder_file_id_dict = session.get("eyegaze_file_id_dict", {})
+        coder_file_id_dict[coder3_id] = coder3
+        session["eyegaze_file_id_dict"] = coder_file_id_dict 
 
+        if coder3:
+            if coder3 in [coder1, coder2]:
+                return render_template("error.html", 
+                                        message="Coder 3 must be different from "\
+                                                "Coder1 and Coder2's files")
+
+            coder3_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder3_id)
+            diff_threshold = session.get("compare_two_threshold_%s_%s"%(coder1_id, coder2_id))
+
+            coder3_summary_records = session.get("%s_summary_records"%coder3_id, [])
+            if not len(coder3_summary_records):
+                records = session.get('%s_records'%coder3_id, [])
+                begin_code = session.get('%s_begin_code'%coder3_id, 
+                                            app.config["BEGIN_CODE"])
+                end_code = session.get('%s_end_code'%coder3_id,
+                                            app.config["END_CODE"])
+                df = pd.DataFrame.from_dict(records)
+                coder3_summary_df = get_trial_summary(df, 
+                            begin_code=begin_code,
+                            end_code=end_code)
+                coder3_summary_records = coder3_summary_df.to_dict("records")
+                session["%s_summary_records"%coder3_id] = coder3_summary_records
+
+        dft = threeway_comparison(coder12_compair_records, 
+                                 coder1_timestsamp_unit,
+                                 coder3_summary_records, 
+                                 coder3_timestsamp_unit,
+                                 threshold=diff_threshold)
+        styled_df_html = re.sub("<(table id.*)>", 
+                                '<table class="styled-table" id="datainput">',
+                                 dft.to_html())
+        buffer = BytesIO()
+        dft.to_excel(buffer, sheet_name = "ComparisonResult", index=False)
+        session["compare_three_%s_%s_%s"%(coder1_id, coder2_id, coder3_id)] =\
+            buffer
     
-    return render_template("eyegazecleaner/compare.html",
+    return render_template("eyegazecleaner/compare_three.html",
                             form=form,
-                            columns=columns,
-                            records=records,
                             coder1_id=coder1_id,
                             coder2_id=coder2_id,
-                            timestamp_unit="milisecond",
-                            diff_col_indices=[],
-                            diff_threshhold=500)
+                            coder3_id=coder3_id,
+                            styled_df_html=styled_df_html,
+                            )
+
+
+@bp.route("/export_compare_three", methods=["GET"])
+@bp.route("/export_compare_three/<coder1_id>/<coder2_id>/<coder3_id>", methods=["GET"])
+def export_compare_three(coder1_id=None, coder2_id=None, coder3_id=None):
+    dft_bytes = session.get("compare_three_%s_%s_%s"%(coder1_id, coder2_id, coder3_id))
+    if dft_bytes is None:
+        return render_template("error.html", 
+                    message="No comparison results found for the requested "\
+                            "coders, please Run Comparison for the requested "\
+                            "coders first")
+    
+    else:
+        coder_file_id_dict = session.get("eyegaze_file_id_dict", {})
+        coder1_filename = coder_file_id_dict.get(coder1_id, coder1_id)
+        coder2_filename = coder_file_id_dict.get(coder2_id, coder2_id)
+        coder3_filename = coder_file_id_dict.get(coder3_id, coder2_id)
+        outfn = "ThreewayCompare_%s-%s-%s.xlsx"%(os.path.splitext(coder1_filename)[0],
+                                          os.path.splitext(coder2_filename)[0],
+                                          os.path.splitext(coder3_filename)[0])
+        headers = {
+                'Content-Disposition': 'attachment; filename=%s'%outfn,
+                'Content-type': 'application/vnd.ms-excel'
+            }
+        return Response(dft_bytes.getvalue(), mimetype='application/vnd.ms-excel', 
+                        headers=headers)

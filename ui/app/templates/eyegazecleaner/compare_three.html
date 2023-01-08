@@ -1,0 +1,49 @@
+{% extends "EyegazeCleaner/nav.html" %}
+
+{% block app_content_content %}
+<div style="margin-left:200px;">
+    <div class="row">
+        <div class="col-2">
+            <div class="row">
+                <h4> Input </h4>
+            </div>
+            <div class="row">
+                {{ wtf.quick_form(form) }}
+            </div>
+            <div class="row" style="margin-top: 20px;">
+                <a href="{{ url_for('eyegazecleaner.export_compare_three', coder1_id=coder1_id, coder2_id=coder2_id, coder3_id=coder3_id) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">Export Comparison Result</a>
+            </div>
+        </div>
+        <div class="col-8" style="margin-left: 20px;">
+            <div class="row">
+                <h4> Comparison Result </h4>
+            </div>
+            <div class="overflow-x:scroll max-width:20%">
+                {{ styled_df_html | safe}}
+            </div>
+        </div>
+    </div>
+    <hr>
+    <div>
+            <li><small></small></li>
+    </div>
+</div>
+
+
+<script>
+    $(document).ready( function () {
+        $.noConflict();
+        $('#datainput').DataTable( {
+            dom: 'Bfrtip',
+            buttons: [
+                'excelHtml5',
+                'csvHtml5',
+                {
+                    extend: 'colvis',
+                    columns: ':not(.noVis)'
+                }
+            ],
+        } );
+    } );
+</script>
+{% endblock %}

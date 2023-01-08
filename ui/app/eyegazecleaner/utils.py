@@ -1,3 +1,4 @@
+import re
 import traceback
 import numpy as np
 import pandas as pd
@@ -280,11 +281,13 @@ def has_discrepancy(row, diff_cols, threshold):
     return 0
 
 
-def highlight_compare_two_discrepancy_cell(x, threshold, color="red"):
+def highlight_compare_two_discrepancy_cell(x, threshold, 
+        color=app.config["FAILED_TWOWAYCOMPARE_COLOR"]):
     return np.where(x > threshold, f"background-color: {color};", None)
 
 
-def highlight_compare_two_discrepancy_trialid(x, l, color="red"):
+def highlight_compare_two_discrepancy_trialid(x, l, 
+        color=app.config["FAILED_TWOWAYCOMPARE_COLOR"]):
     return np.where(x.isin(l), f"background-color: {color};", None)
 
 
@@ -303,5 +306,222 @@ def highlight_compare_two_discrepancy(df, threshold,
     return df
 
 
-def find_trial_with_max_overlap(coder1_summary, coder2_summary, coder3_summary):
-    pass
+def get_overlap_frac(row, begin, end, begin_code="B", end_code="S"):
+    latest_begin = max(row[begin_code], begin)
+    earliest_end = min(row[end_code], end)
+    overlap = earliest_end - latest_begin
+    if overlap < 0:
+        return 0
+    else:
+        return overlap / (end - begin)
+    
+
+def add_coder3_to_paircomparison(df12, df3,
+    begin_code="B",
+    end_code="S",
+    trial_id_col="trial_id"):
+    
+    df3 = df3.copy()
+    
+    coder3_trial_id_in_coder1 = []
+    to_fix_trials = []
+    for ind, row in df3.iterrows():
+        begin = row["B"]
+        end = row["S"]
+        v1 = df12.apply(get_overlap_frac, args=(begin, end, begin_code+'.1', end_code+'.1'), axis=1)
+        which_coder1_trial = df12.iloc[np.argmax(v1)][trial_id_col]
+        which_coder1_trial_ind = np.argmax(v1)
+        coder3_trial_id_in_coder1.append(int(which_coder1_trial))
+        to_fix_trials.append((int(which_coder1_trial_ind), int(which_coder1_trial)))
+
+        v2 = df12.apply(get_overlap_frac, args=(begin, end, begin_code+'.2', end_code+'.2'), axis=1)
+        which_coder2_trial = df12.iloc[np.argmax(v2)][trial_id_col]
+
+        if which_coder1_trial != which_coder2_trial:
+            message = "CANNOT PLACE THE CODER 3 TRIAL IN CODER 1 and 2 coding files,"\
+                  " make sure coder 1-3 are coding the same trials"
+            return False, message
+    
+    df3[trial_id_col] = coder3_trial_id_in_coder1
+    df3.columns = [c+".3" if c != trial_id_col else c for c in df3.columns]
+    dft = pd.merge(df12, df3, how="left", on=trial_id_col)
+    
+    merged_ordered_cols = ["%s%s"%(re.findall("(.*)[0-9]", c)[0], coder) \
+                           if (c != trial_id_col) and (not c.endswith("diff")) else c \
+                           for c in df12.columns for coder in [1,2,3]]
+    res  = []
+    _ = [res.append(x) for x in merged_ordered_cols if (x not in res) and (x in dft.columns)]
+    merged_ordered_cols = res
+    dft = dft[merged_ordered_cols]
+    return dft, to_fix_trials
+
+
+def highlight_coder3_resolution(x, l, color="#EAE7B1"):
+    color_list = np.array([None]*len(x))
+    color_list[l] = f"background-color: {color};"
+    return color_list
+
+
+def get_coder_with_most_agreement(row, trial_id_col, agreement_frac_thresh=0.5):
+    coder1_counts = 0
+    coder2_counts = 0
+    ttl = 0
+    row = row.to_dict()
+    for col, v in row.items():
+        if ("similarity_winner" in col) and pd.notnull(v):
+            ttl += 1
+            if len(v) == 2:
+                # Coder1 and coder2 are equally smililar
+                coder1_counts += 0.5
+                coder2_counts += 0.5
+            elif len(v) == 1:
+                if v[0] == 1:
+                    coder1_counts += 1
+                else:
+                    coder2_counts += 1
+    # how often coder1 is the more similar coder
+    coder1_frac = coder1_counts / ttl
+    # how often coder2 is the more similar coder
+    coder2_frac = coder2_counts / ttl
+    if coder1_frac >= coder2_frac:
+        winner = 1
+        winner_count = coder1_counts
+        highest_agreement_frac = coder1_frac
+    else:
+        winner = 2
+        winner_count = coder2_counts
+        highest_agreement_frac = coder2_frac
+    if highest_agreement_frac >= agreement_frac_thresh:
+        trial_is_usable = True
+    else:
+        trial_is_usable = False
+    return trial_is_usable, winner, ttl, winner_count, highest_agreement_frac
+
+
+def threeway_resolution(dft, df3, to_fix_trials, threshold, 
+                        trial_id_col=app.config["TRIAL_ID_COL"]):
+    '''
+    :param to_fix_trials: list of tuples, [(index, trial_id)], ex. to_fix_trials = [(13, 14)] 
+    '''
+    to_compare_cols = [c for c in df3.columns if c not in [trial_id_col,'attention.entire.trial']]
+    resolution_records = []
+    for ind, trial_id in to_fix_trials:
+        row = dft[dft[trial_id_col] == trial_id].iloc[0]
+        record = {"index":ind, trial_id_col : trial_id}
+
+        for c in to_compare_cols:
+            c1 = row[c+".1"]
+            c2 = row[c+".2"]
+            c3 = row[c+".3"]
+            diff_12 = np.abs(c2 - c1)
+            if diff_12 > threshold: 
+                diff_1 = np.abs(c3 - c1)
+                diff_2 = np.abs(c3 - c2)
+
+                if diff_1 < diff_2:
+                    if diff_1 <= threshold:
+                        record["similarity_winner.%s"%c] = [1]
+                    else:
+                        record["similarity_winner.%s"%c] = []
+
+                elif diff_1 == diff_2:
+                    if diff_1 <= threshold:
+                        record["similarity_winner.%s"%c] = [1,2]
+                    else:
+                        record["similarity_winner.%s"%c] = []
+
+                else:
+                    if diff_2 <= threshold:
+                        record["similarity_winner.%s"%c] = [2]
+                    else:
+                        record["similarity_winner.%s"%c] = []
+
+                if diff_1 == 0:
+                    record["final_selected_coder.%s"%c] = 1
+                elif diff_2 == 0:
+                    record["final_selected_coder.%s"%c] = 2
+                elif (min(c1, c2) < c3 < max(c1, c2)):   # coder3 in between
+                    # print("IN BETWEEN", c, "diff1", diff_1, "diff2", diff_2, c1, c2, c3)
+                    if len(record["similarity_winner.%s"%c]) == 2:
+                        # coder1/2 are both eligible, use 3
+                        record["final_selected_coder_%s"%c] = 3
+                    elif len(record["similarity_winner.%s"%c]) == 1:
+                        # coder1/2 only 1 eligible, use the eligible one
+                        record["final_selected_coder.%s"%c] = record["similarity_winner.%s"%c][0]
+                    else:
+                        # coder1/2 both not eligible, use nothing
+                        record["final_selected_coder.%s"%c] = 0
+                else: # coder 3 < coder1, coder 2 or coder3 > coder1, coder2
+                    if len(record["similarity_winner.%s"%c]):
+                        record["final_selected_coder.%s"%c] = record["similarity_winner.%s"%c][0]
+                    else:
+                        record["final_selected_coder.%s"%c] = 0
+
+            else:
+                record["similarity_winner.%s"%c] = np.nan
+                record["final_selected_coder.%s"%c] = np.nan
+
+        resolution_records.append(record)
+
+    resolution_df = pd.DataFrame(resolution_records)
+    resolution_df[["trial_is_usable", "coder_with_most_agreement", "num_discrepancy", 
+               "num_agreement_by_the_winner_coder", "agreement_percentage"]] \
+        = resolution_df.apply(get_coder_with_most_agreement, args=(trial_id_col, ), 
+                              axis=1, result_type="expand")
+    return resolution_df
+
+
+def colorcode_threeway_comparison(dft, resolution_df,
+    threshold,
+    trial_id_col=app.config["TRIAL_ID_COL"],
+    similarity_winner_coder_color=app.config["SIMILARITY_WINNER_CODER_COLOR"],
+    final_selected_coder_color=app.config["FINAL_SELECTED_CODER_COLOR"],
+    failed_threewaycompare_color=app.config["FAILED_THREEWAYCOMPARE_COLOR"]):
+
+    t = highlight_compare_two_discrepancy(dft, threshold)
+    for ind, row in resolution_df.iterrows():
+        style_col_subsets = []
+        for c in row.index:
+            if c.startswith("similarity_winner") and pd.notnull(row[c]):
+                base_col_name = c.split("similarity_winner.")[1]
+                coders = row[c]
+                if len(coders):
+                    style_col_subsets = ["%s.%s"%(base_col_name, coder) for coder in coders]
+                    # light green
+                    t = t.apply(highlight_coder3_resolution, l=[row["index"]], 
+                                color=similarity_winner_coder_color,
+                                subset=style_col_subsets)
+                else: # no coders match 3rd coder
+                    style_col_subsets = ["%s.%s"%(base_col_name, coder) for coder in [1,2,3]]
+                    # red
+                    t = t.apply(highlight_coder3_resolution, l=[row["index"]], 
+                                color=failed_threewaycompare_color,
+                                subset=style_col_subsets)
+
+            if c.startswith("final_selected_coder.") and pd.notnull(row[c]):
+                base_col_name = c.split("final_selected_coder.")[1]
+                coder = row[c]
+                style_col_subsets = ["%s.%s"%(base_col_name, coder)]
+                # light green
+                t = t.apply(highlight_coder3_resolution, l=[row["index"]],
+                            color=final_selected_coder_color,
+                            subset=style_col_subsets)
+    return t
+
+
+def threeway_comparison(records12, unit1, records3, unit3, threshold):
+    df12 = pd.DataFrame.from_dict(records12)
+    df3 = pd.DataFrame.from_dict(records3)
+
+    if unit1 != unit3:  # convert coder2 to use the same unit as coder1
+        if (unit1 == "frame") \
+                and (unit3 == "milisecond"):
+                df3 = convert_milisecond_to_frame(df3, filetype="trial_summary")
+        else:
+            df3 = convert_frame_to_milisecond(df3, filetype="trial_summary") 
+
+    dft, to_fix_trials = add_coder3_to_paircomparison(df12, df3)
+    resolution_df = threeway_resolution(dft, df3, to_fix_trials, threshold)
+    dft = colorcode_threeway_comparison(dft, resolution_df,
+                                        threshold)
+    return dft
