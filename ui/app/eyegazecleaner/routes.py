@@ -323,10 +323,10 @@ def quality_check(file_id, auto_check=0):
 @bp.route('/trial_summary/<file_id>', methods=['GET'])
 def trial_summary(file_id=None):
     if file_id:
-        summary_records = session.get("%s_summary_records"%file_id, None)
-        summary_columns = session.get("%s_summary_columns"%file_id, None)
+        summary_records = session.get("%s_summary_records"%file_id, [])
+        summary_columns = session.get("%s_summary_columns"%file_id, [])
         filename = session.get("%s_filename"%file_id, "Unknown")
-        if summary_records is None:
+        if not (len(summary_records) and len(summary_columns)):
             records = session.get('%s_records'%file_id, [])
             begin_code = session.get('%s_begin_code'%file_id, app.config["BEGIN_CODE"])
             end_code = session.get('%s_end_code'%file_id, app.config["END_CODE"])
