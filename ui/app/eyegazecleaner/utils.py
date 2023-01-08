@@ -301,3 +301,7 @@ def highlight_compare_two_discrepancy(df, threshold,
                   .apply(highlight_compare_two_discrepancy_trialid, 
                         l=has_discrepancy_trial_ids, subset=trial_id_col)
     return df
+
+
+def find_trial_with_max_overlap(coder1_summary, coder2_summary, coder3_summary):
+    pass

@@ -324,9 +324,9 @@ def quality_check(file_id, auto_check=0):
 def trial_summary(file_id=None):
     if file_id:
         summary_records = session.get("%s_summary_records"%file_id, None)
-        summary_columns = session.get("%s_summary_records"%file_id, None)
+        summary_columns = session.get("%s_summary_columns"%file_id, None)
+        filename = session.get("%s_filename"%file_id, "Unknown")
         if summary_records is None:
-            filename = session.get("%s_filename"%file_id, "Unknown")
             records = session.get('%s_records'%file_id, [])
             begin_code = session.get('%s_begin_code'%file_id, app.config["BEGIN_CODE"])
             end_code = session.get('%s_end_code'%file_id, app.config["END_CODE"])
