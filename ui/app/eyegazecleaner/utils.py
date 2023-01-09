@@ -312,7 +312,7 @@ def get_overlap_frac(row, begin, end, begin_code="B", end_code="S"):
     latest_begin = max(row[begin_code], begin)
     earliest_end = min(row[end_code], end)
     overlap = earliest_end - latest_begin
-    if overlap < 0:
+    if overlap <= 0:
         return 0
     else:
         return overlap / (end - begin)
@@ -339,10 +339,19 @@ def add_coder3_to_paircomparison(df12, df3,
         v2 = df12.apply(get_overlap_frac, args=(begin, end, begin_code+'.2', end_code+'.2'), axis=1)
         which_coder2_trial = df12.iloc[np.argmax(v2)][trial_id_col]
 
-        if which_coder1_trial != which_coder2_trial:
-            message = "CANNOT PLACE THE CODER 3 TRIAL IN CODER 1 and 2 coding files,"\
-                  " make sure coder 1-3 are coding the same trials"
-            return False, message
+        if (which_coder1_trial != which_coder2_trial):
+            error_message = "CANNOT PLACE THE CODER 3 TRIAL "\
+                  "IN CODER 1 and 2 coding files,"\
+                  " make sure coder 1-3 are coding the same trials. Details:"\
+                  "coder3 trial %s map to trial %s in coder1; map to trial %s in coder2"\
+                    %(ind, which_coder1_trial, which_coder2_trial)
+            return False, error_message, None, [], {} 
+        if np.max(v1) == 0:
+            error_message = "CANNOT PLACE THE CODER 3 TRIAL "\
+                  "IN CODER 1 and 2 coding files,"\
+                  " make sure coder 1-3 are coding the same trials. Details:"\
+                  "coder3 trial %s has no overlap to trials in coder1"%ind
+            return False, error_message, None, [], {} 
 
     coder3_trial_id_lookup = dict(zip(df3[trial_id_col], 
                                       coder3_trial_id_in_coder1))
@@ -357,7 +366,7 @@ def add_coder3_to_paircomparison(df12, df3,
     _ = [res.append(x) for x in merged_ordered_cols if (x not in res) and (x in dft.columns)]
     merged_ordered_cols = res
     dft = dft[merged_ordered_cols]
-    return dft, to_fix_trials, coder3_trial_id_lookup
+    return True, "", dft, to_fix_trials, coder3_trial_id_lookup
 
 
 def highlight_coder3_resolution(x, l, color="#EAE7B1"):
@@ -454,8 +463,12 @@ def colorcode_threeway_comparison(dft, resolution_df,
     for _, row in resolution_df.iterrows():
         for c in row.index:
             if c == "index":
-                dft.at[row[c], "which_coder"] =\
-                    min(row["coder_with_most_agreement"])
+                coder_with_most_agreement = row["coder_with_most_agreement"]
+                if len(coder_with_most_agreement):
+                    coder_with_most_agreement = min(coder_with_most_agreement)
+                else:
+                    coder_with_most_agreement = None
+                dft.at[row[c], "which_coder"] = coder_with_most_agreement
                 dft.at[row[c], "trial_is_usable"] =\
                     row["trial_is_usable"]
 
@@ -494,12 +507,15 @@ def threeway_comparison(records12, unit1, records3, unit3, threshold,
         else:
             df3 = convert_frame_to_milisecond(df3, filetype="trial_summary") 
 
-    dft, to_fix_trials, coder3_trial_id_lookup \
+    add_trial3_status, error_message, dft, to_fix_trials, coder3_trial_id_lookup \
         = add_coder3_to_paircomparison(df12, df3)
-    resolution_df = threeway_resolution(dft, df3, to_fix_trials, threshold)
-    dft = colorcode_threeway_comparison(dft, resolution_df,
-                                        threshold)
-    return dft, resolution_df, coder3_trial_id_lookup
+    if add_trial3_status:
+        resolution_df = threeway_resolution(dft, df3, to_fix_trials, threshold)
+        dft = colorcode_threeway_comparison(dft, resolution_df,
+                                            threshold)
+        return True, error_message, (dft, resolution_df, coder3_trial_id_lookup)
+    else:
+        return False, error_message, ()
 
 
 def combine_coding(compare_records, 

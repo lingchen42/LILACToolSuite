@@ -592,12 +592,16 @@ def compare_three():
                 coder3_summary_records = coder3_summary_df.to_dict("records")
                 session["%s_summary_records"%coder3_id] = coder3_summary_records
 
-        dft, resolution_df, coder3_trial_id_lookup\
+        comparison_status, error_message, results\
              = threeway_comparison(coder12_compair_records, 
                                  coder1_timestsamp_unit,
                                  coder3_summary_records, 
                                  coder3_timestsamp_unit,
                                  threshold=diff_threshold)
+        if not comparison_status:  # comparison failed
+            return render_template("error.html", message=error_message)
+
+        dft, resolution_df, coder3_trial_id_lookup = results
         session['%s_trial_id_lookup_in_%s_and_%s'\
                 %(coder3_id, coder1_id, coder2_id)] = coder3_trial_id_lookup
 
