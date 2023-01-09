@@ -362,35 +362,22 @@ def highlight_coder3_resolution(x, l, color="#EAE7B1"):
     return color_list
 
 
-def get_coder_with_most_agreement(row, trial_id_col, agreement_frac_thresh=0.5):
-    coder1_counts = 0
-    coder2_counts = 0
+def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5):
+    counts = [0, 0, 0]
+
     ttl = 0
     row = row.to_dict()
-    for col, v in row.items():
-        if ("similarity_winner" in col) and pd.notnull(v):
+    for col, winners in row.items():
+        if ("similarity_winner" in col) and (winners != "NA"):
             ttl += 1
-            if len(v) == 2:
-                # Coder1 and coder2 are equally smililar
-                coder1_counts += 0.5
-                coder2_counts += 0.5
-            elif len(v) == 1:
-                if v[0] == 1:
-                    coder1_counts += 1
-                else:
-                    coder2_counts += 1
-    # how often coder1 is the more similar coder
-    coder1_frac = coder1_counts / ttl
-    # how often coder2 is the more similar coder
-    coder2_frac = coder2_counts / ttl
-    if coder1_frac >= coder2_frac:
-        winner = 1
-        winner_count = coder1_counts
-        highest_agreement_frac = coder1_frac
-    else:
-        winner = 2
-        winner_count = coder2_counts
-        highest_agreement_frac = coder2_frac
+            for coder in winners:
+                counts[coder-1] += 1  # coder 1 indexing
+    counts = np.array(counts)
+    agreement_fracs = counts / ttl 
+    winner = np.argwhere(agreement_fracs == np.amax(agreement_fracs)).squeeze() + 1 # coder 1 indexing
+    winner_count = np.max(counts)
+    highest_agreement_frac = np.max(agreement_fracs)
+
     if highest_agreement_frac >= agreement_frac_thresh:
         trial_is_usable = True
     else:
@@ -420,69 +407,54 @@ def threeway_resolution(dft, df3, to_fix_trials, threshold,
 
                 if diff_1 < diff_2:
                     if diff_1 <= threshold:
-                        record["similarity_winner.%s"%c] = [1]
+                        record["similarity_winner.%s"%c] = [1,3]
                     else:
                         record["similarity_winner.%s"%c] = []
 
                 elif diff_1 == diff_2:
-                    if diff_1 <= threshold:
+                    if diff_1 == diff_2 == 0:
+                        record["similarity_winner.%s"%c] = [1,2,3]
+                    elif diff_1 <= threshold:
                         record["similarity_winner.%s"%c] = [1,2]
                     else:
                         record["similarity_winner.%s"%c] = []
 
                 else:
                     if diff_2 <= threshold:
-                        record["similarity_winner.%s"%c] = [2]
+                        record["similarity_winner.%s"%c] = [2,3]
                     else:
                         record["similarity_winner.%s"%c] = []
 
-                if diff_1 == 0:
-                    record["final_selected_coder.%s"%c] = 1
-                elif diff_2 == 0:
-                    record["final_selected_coder.%s"%c] = 2
-                elif (min(c1, c2) < c3 < max(c1, c2)):   # coder3 in between
-                    # print("IN BETWEEN", c, "diff1", diff_1, "diff2", diff_2, c1, c2, c3)
-                    if len(record["similarity_winner.%s"%c]) == 2:
-                        # coder1/2 are both eligible, use 3
-                        record["final_selected_coder_%s"%c] = 3
-                    elif len(record["similarity_winner.%s"%c]) == 1:
-                        # coder1/2 only 1 eligible, use the eligible one
-                        record["final_selected_coder.%s"%c] = record["similarity_winner.%s"%c][0]
-                    else:
-                        # coder1/2 both not eligible, use nothing
-                        record["final_selected_coder.%s"%c] = 0
-                else: # coder 3 < coder1, coder 2 or coder3 > coder1, coder2
-                    if len(record["similarity_winner.%s"%c]):
-                        record["final_selected_coder.%s"%c] = record["similarity_winner.%s"%c][0]
-                    else:
-                        record["final_selected_coder.%s"%c] = 0
-
             else:
-                record["similarity_winner.%s"%c] = np.nan
-                record["final_selected_coder.%s"%c] = np.nan
+                record["similarity_winner.%s"%c] = "NA"
 
         resolution_records.append(record)
 
     resolution_df = pd.DataFrame(resolution_records)
     resolution_df[["trial_is_usable", "coder_with_most_agreement", "num_discrepancy", 
                "num_agreement_by_the_winner_coder", "agreement_percentage"]] \
-        = resolution_df.apply(get_coder_with_most_agreement, args=(trial_id_col, ), 
+        = resolution_df.apply(get_coder_with_most_agreement,
                               axis=1, result_type="expand")
     return resolution_df
 
 
 def colorcode_threeway_comparison(dft, resolution_df,
     threshold,
-    trial_id_col=app.config["TRIAL_ID_COL"],
     similarity_winner_coder_color=app.config["SIMILARITY_WINNER_CODER_COLOR"],
-    final_selected_coder_color=app.config["FINAL_SELECTED_CODER_COLOR"],
     failed_threewaycompare_color=app.config["FAILED_THREEWAYCOMPARE_COLOR"]):
 
+    dft["which_coder"] = 1
+    for _, row in resolution_df.iterrows():
+        for c in row.index:
+            if c == "index":
+                dft.at[row[c], "which_coder"] =\
+                    max(row["coder_with_most_agreement"])
+
     t = highlight_compare_two_discrepancy(dft, threshold)
-    for ind, row in resolution_df.iterrows():
+    for _, row in resolution_df.iterrows():
         style_col_subsets = []
         for c in row.index:
-            if c.startswith("similarity_winner") and pd.notnull(row[c]):
+            if c.startswith("similarity_winner") and (row[c] != "NA"):
                 base_col_name = c.split("similarity_winner.")[1]
                 coders = row[c]
                 if len(coders):
@@ -498,14 +470,6 @@ def colorcode_threeway_comparison(dft, resolution_df,
                                 color=failed_threewaycompare_color,
                                 subset=style_col_subsets)
 
-            if c.startswith("final_selected_coder.") and pd.notnull(row[c]):
-                base_col_name = c.split("final_selected_coder.")[1]
-                coder = row[c]
-                style_col_subsets = ["%s.%s"%(base_col_name, coder)]
-                # light green
-                t = t.apply(highlight_coder3_resolution, l=[row["index"]],
-                            color=final_selected_coder_color,
-                            subset=style_col_subsets)
     return t
 
 
