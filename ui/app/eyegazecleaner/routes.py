@@ -213,9 +213,7 @@ def delete(file_id):
 
 @bp.route('/quality_check', methods=['GET', 'POST'])
 @bp.route('/quality_check/<file_id>', methods=['GET', 'POST'])
-@bp.route('/quality_check/<file_id>/<auto_check>', methods=['GET', 'POST'])
-def quality_check(file_id, auto_check=0):
-    auto_check = int(auto_check)
+def quality_check(file_id):
     if file_id:
         records = session.get('%s_records'%file_id, [])
         dft = pd.DataFrame.from_dict(records)
@@ -239,7 +237,9 @@ def quality_check(file_id, auto_check=0):
             if expected_num_trials is not None:
                 setattr(getattr(form, "expected_num_trials"), "data", expected_num_trials)
         
-        if form.validate_on_submit() or auto_check:
+        if form.validate_on_submit():
+            session['%s_begin_code'%file_id] = form.begin_code.data
+            session['%s_end_code'%file_id] = form.end_code.data
             session["%s_eligible_codes"%file_id] = form.eligible_codes.data
             session["%s_expected_num_trials"%file_id] = form.expected_num_trials.data
 
@@ -592,11 +592,15 @@ def compare_three():
                 coder3_summary_records = coder3_summary_df.to_dict("records")
                 session["%s_summary_records"%coder3_id] = coder3_summary_records
 
-        dft, resolution_df = threeway_comparison(coder12_compair_records, 
+        dft, resolution_df, coder3_trial_id_lookup\
+             = threeway_comparison(coder12_compair_records, 
                                  coder1_timestsamp_unit,
                                  coder3_summary_records, 
                                  coder3_timestsamp_unit,
                                  threshold=diff_threshold)
+        session['%s_trial_id_lookup_in_%s_and_%s'\
+                %(coder3_id, coder1_id, coder2_id)] = coder3_trial_id_lookup
+
         styled_df_html = re.sub("<(table id.*)>", 
                                 '<table class="styled-table" id="datainput">',
                                  dft.to_html())
@@ -608,6 +612,8 @@ def compare_three():
             dft.data.to_dict("records")
         resolution_records = resolution_df.to_dict("records")
         resolution_columns = resolution_df.columns
+        session["compare_three_resolutionrecords_%s_%s_%s"\
+                %(coder1_id, coder2_id, coder3_id)] = resolution_records
     
     return render_template("eyegazecleaner/compare_three.html",
                             form=form,
@@ -618,6 +624,28 @@ def compare_three():
                             resolution_records=resolution_records,
                             resolution_columns=resolution_columns,
                             )
+
+
+@bp.route("/export_discrepancy_resolution", methods=["GET"])
+@bp.route("/export_discrepancy_resolution/<coder1_id>/<coder2_id>/<coder3_id>", methods=["GET"])
+def export_discrepancy_resolution(coder1_id=None, coder2_id=None, coder3_id=None):
+    resolution_records = session.get("compare_three_resolutionrecords_%s_%s_%s"\
+                %(coder1_id, coder2_id, coder3_id))
+    if rearrange_codes is not None:
+        dft = pd.DataFrame.from_dict(resolution_records)
+        coder_file_id_dict = session.get("eyegaze_file_id_dict", {})
+        coder1_filename = coder_file_id_dict.get(coder1_id, coder1_id)
+        coder2_filename = coder_file_id_dict.get(coder2_id, coder2_id)
+        coder3_filename = coder_file_id_dict.get(coder3_id, coder2_id)
+        outfn = "DiscrepancyResolutionThreeCoders_%s-%s-%s.csv"\
+                            %(os.path.splitext(coder1_filename)[0],
+                            os.path.splitext(coder2_filename)[0],
+                            os.path.splitext(coder3_filename)[0])
+        return Response(
+                        dft.to_csv(index=False),
+                        mimetype="text/csv",
+                        headers={"Content-disposition":
+                                "attachment; filename=%s"%outfn})
 
 
 @bp.route("/export_compare_three", methods=["GET"])
@@ -651,7 +679,7 @@ def export_compare_three(coder1_id=None, coder2_id=None, coder3_id=None):
 @bp.route("/export_combined/<coder1_id>/<coder2_id>/<coder3_id>", methods=["GET"])
 def export_combined(coder1_id=None, coder2_id=None, coder3_id=None):
     coder_file_id_dict = session.get("eyegaze_file_id_dict", {})
-    print(coder1_id, coder2_id)
+    print(coder1_id, coder2_id, coder3_id)
     if coder1_id and coder2_id:
         coder1_filename = coder_file_id_dict.get(coder1_id, coder1_id)
         coder2_filename = coder_file_id_dict.get(coder2_id, coder2_id)
@@ -659,9 +687,33 @@ def export_combined(coder1_id=None, coder2_id=None, coder3_id=None):
         if coder3_id:
             # export compare three results
             coder3_filename = coder_file_id_dict.get(coder3_id, coder2_id)
-            records = session.get("compare_three_records_%s_%s_%s"\
+            compare_records = session.get("compare_three_records_%s_%s_%s"\
                                 %(coder1_id, coder2_id, coder3_id))
-            dft = combine_coding(records)
+            coder1_records = session.get('%s_records'%coder1_id, [])
+            coder1_begin_code = session.get('%s_begin_code'%coder1_id, 
+                                            app.config["BEGIN_CODE"])
+            coder2_records = session.get('%s_records'%coder2_id, [])
+            coder2_begin_code = session.get('%s_begin_code'%coder1_id, 
+                                            app.config["BEGIN_CODE"])
+            coder3_records = session.get('%s_records'%coder3_id, [])
+            coder3_trial_id_lookup \
+                = session.get('%s_trial_id_lookup_in_%s_and_%s'\
+                              %(coder3_id, coder1_id, coder2_id), None)
+            if coder3_trial_id_lookup is None:
+                return render_template("error.html",
+                    message="Coder3 (%s) trial id lookup table in "\
+                            "Coder 1 (%s) and 2 (%s) cannot be found. "\
+                            "Please run three coder file comparison "\
+                            "to merge coder3 to coder 1 and 2 file first"\
+                            %(coder3_filename, coder1_filename, coder2_filename))
+
+            coder3_begin_code = session.get('%s_begin_code'%coder1_id, 
+                                            app.config["BEGIN_CODE"])
+            dft = combine_coding(compare_records, 
+                    coder1_records, coder1_begin_code, coder1_filename,
+                    coder2_records, coder2_begin_code, coder2_filename,
+                    coder3_records, coder3_begin_code, coder3_filename, 
+                    coder3_trial_id_lookup)
             outfn = "CodingCombinedFromThreeCoders_%s-%s-%s.csv"\
                             %(os.path.splitext(coder1_filename)[0],
                             os.path.splitext(coder2_filename)[0],
@@ -673,9 +725,17 @@ def export_combined(coder1_id=None, coder2_id=None, coder3_id=None):
                                     "attachment; filename=%s"%outfn})
 
         else: # pair compare combined
-            records = session.get("compare_two_records_%s_%s"\
+            compare_records = session.get("compare_two_records_%s_%s"\
                                 %(coder1_id, coder2_id))
-            dft = combine_coding(records)
+            coder1_records = session.get('%s_records'%coder1_id, [])
+            coder1_begin_code = session.get('%s_begin_code'%coder1_id, 
+                                            app.config["BEGIN_CODE"])
+            coder2_records = session.get('%s_records'%coder2_id, [])
+            coder2_begin_code = session.get('%s_begin_code'%coder1_id, 
+                                            app.config["BEGIN_CODE"])
+            dft = combine_coding(compare_records, 
+                    coder1_records, coder1_begin_code, coder1_filename,
+                    coder2_records, coder2_begin_code, coder2_filename)
             outfn = "CodingCombinedFromTwoCoders_%s-%s.csv"\
                             %(os.path.splitext(coder1_filename)[0],
                             os.path.splitext(coder2_filename)[0])

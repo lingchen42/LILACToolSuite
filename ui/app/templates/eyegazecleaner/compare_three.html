@@ -14,7 +14,10 @@
                 <a href="{{ url_for('eyegazecleaner.export_compare_three', coder1_id=coder1_id, coder2_id=coder2_id, coder3_id=coder3_id) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">Export Comparison Result</a>
             </div>
             <div class="row" style="margin-top: 20px;">
-                <a href="{{ url_for('eyegazecleaner.export_combined', coder1_id=coder1_id, coder2_id=coder2_id, coder3_id=None) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">Export Combined Result</a>
+                <a href="{{ url_for('eyegazecleaner.export_combined', coder1_id=coder1_id, coder2_id=coder2_id, coder3_id=coder3_id) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">Export Combined Result</a>
+            </div>
+            <div class="row" style="margin-top: 20px;">
+                <a href="{{ url_for('eyegazecleaner.export_discrepancy_resolution', coder1_id=coder1_id, coder2_id=coder2_id, coder3_id=coder3_id) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">Export Combined Result</a>
             </div>
         </div>
         <div class="col-8" style="margin-left: 20px;">
@@ -59,6 +62,7 @@
     <div>
             <li><small>Discrepancy Resolution Step shows the selection process of the most reliable coder for trials with discrepancy</small></li>
             <li><small>Export Combined Result will use the coder specified in the which_coder column as the final result</small></li>
+            <li><small>Export Combined Result will trials where train_is_usable is False</small></li>
     </div>
 </div>
 

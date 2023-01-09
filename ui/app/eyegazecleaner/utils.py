@@ -6,6 +6,20 @@ import pandas as pd
 from app import app
 
 
+def assign_trial_id(df, code_col=app.config["CODE_COL"], 
+                    begin_code=app.config["BEGIN_CODE"],
+                    trial_id_col=app.config["TRIAL_ID_COL"]):
+    codes = df[code_col].values
+    trial_ids = []
+    trial_id = 0
+    for c in codes:
+        if c == begin_code:
+            trial_id += 1
+        trial_ids.append(trial_id)
+    df[trial_id_col] = trial_ids
+    return df
+
+
 def convert_milisecond_to_frame(df, scale=0.03, file_type="raw_coding_file",
     onset_col=app.config["ONSET_COL"],
     offset_col=app.config["OFFSET_COL"]):
@@ -182,19 +196,6 @@ def rearrange_codes(codes, default_begin_code=app.config["BEGIN_CODE"],
     return codes
 
 
-def assign_trial_id(df, code_col=app.config["CODE_COL"], 
-                    begin_code=app.config["BEGIN_CODE"]):
-    codes = df[code_col].values
-    trial_ids = []
-    trial_id = 0
-    for c in codes:
-        if c == begin_code:
-            trial_id += 1
-        trial_ids.append(trial_id)
-    df[app.config["TRIAL_ID_COL"]] = trial_ids
-    return df
-
-
 def get_trial_summary(df, code_col=app.config["CODE_COL"],
                       begin_code=app.config["BEGIN_CODE"],
                       end_code=app.config["END_CODE"],
@@ -342,7 +343,9 @@ def add_coder3_to_paircomparison(df12, df3,
             message = "CANNOT PLACE THE CODER 3 TRIAL IN CODER 1 and 2 coding files,"\
                   " make sure coder 1-3 are coding the same trials"
             return False, message
-    
+
+    coder3_trial_id_lookup = dict(zip(df3[trial_id_col], 
+                                      coder3_trial_id_in_coder1))
     df3[trial_id_col] = coder3_trial_id_in_coder1
     df3.columns = [c+".3" if c != trial_id_col else c for c in df3.columns]
     dft = pd.merge(df12, df3, how="left", on=trial_id_col)
@@ -354,7 +357,7 @@ def add_coder3_to_paircomparison(df12, df3,
     _ = [res.append(x) for x in merged_ordered_cols if (x not in res) and (x in dft.columns)]
     merged_ordered_cols = res
     dft = dft[merged_ordered_cols]
-    return dft, to_fix_trials
+    return dft, to_fix_trials, coder3_trial_id_lookup
 
 
 def highlight_coder3_resolution(x, l, color="#EAE7B1"):
@@ -375,7 +378,9 @@ def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5):
                 counts[coder-1] += 1  # coder 1 indexing
     counts = np.array(counts)
     agreement_fracs = counts / ttl 
-    winner = np.argwhere(agreement_fracs == np.amax(agreement_fracs)).squeeze() + 1 # coder 1 indexing
+    winner = np.argwhere(agreement_fracs == np.amax(agreement_fracs))\
+                .squeeze(axis=-1) + 1 # coder 1 indexing
+    winner = list(winner)
     winner_count = np.max(counts)
     highest_agreement_frac = np.max(agreement_fracs)
 
@@ -445,11 +450,14 @@ def colorcode_threeway_comparison(dft, resolution_df,
     failed_threewaycompare_color=app.config["FAILED_THREEWAYCOMPARE_COLOR"]):
 
     dft["which_coder"] = 1
+    dft["trial_is_usable"] = True
     for _, row in resolution_df.iterrows():
         for c in row.index:
             if c == "index":
                 dft.at[row[c], "which_coder"] =\
                     min(row["coder_with_most_agreement"])
+                dft.at[row[c], "trial_is_usable"] =\
+                    row["trial_is_usable"]
 
     t = highlight_compare_two_discrepancy(dft, threshold)
     for _, row in resolution_df.iterrows():
@@ -474,7 +482,8 @@ def colorcode_threeway_comparison(dft, resolution_df,
     return t
 
 
-def threeway_comparison(records12, unit1, records3, unit3, threshold):
+def threeway_comparison(records12, unit1, records3, unit3, threshold,
+                        trial_id_col=app.config["TRIAL_ID_COL"]):
     df12 = pd.DataFrame.from_dict(records12)
     df3 = pd.DataFrame.from_dict(records3)
 
@@ -485,30 +494,46 @@ def threeway_comparison(records12, unit1, records3, unit3, threshold):
         else:
             df3 = convert_frame_to_milisecond(df3, filetype="trial_summary") 
 
-    dft, to_fix_trials = add_coder3_to_paircomparison(df12, df3)
+    dft, to_fix_trials, coder3_trial_id_lookup \
+        = add_coder3_to_paircomparison(df12, df3)
     resolution_df = threeway_resolution(dft, df3, to_fix_trials, threshold)
     dft = colorcode_threeway_comparison(dft, resolution_df,
                                         threshold)
-    return dft, resolution_df
+    return dft, resolution_df, coder3_trial_id_lookup
 
 
-def combine_coding_per_row(row, trial_id_col):
-    which_coder = int(row["which_coder"])
-    cols = [trial_id_col]
-    cols_clean = [trial_id_col]
-    cols_clean.extend([ os.path.splitext(c)[0] for c in row.index if c.endswith(".%s"%which_coder) ])
-    cols.extend([ c for c in row.index if c.endswith(".%s"%which_coder) ])
-    t = row[cols]
-    t.index = cols_clean
-    return t
+def combine_coding(compare_records, 
+                   coder1_records, coder1_begin_code, code1_filename,
+                   coder2_records, coder2_begin_code, code2_filename,
+                   coder3_records=[], 
+                   coder3_begin_code=app.config["BEGIN_CODE"],
+                   code3_filename="NA",
+                   coder3_trial_id_lookup={},
+                   trial_id_col=app.config["TRIAL_ID_COL"]):
+    compare_df = pd.DataFrame.from_dict(compare_records)
+    if "which_coder" not in compare_df.columns:   # twoway coding
+        compare_df["which_coder"] = 1
+    if "trial_is_usable" not in compare_df.columns:
+        compare_df["trial_is_usable"] = True
+    df1 = pd.DataFrame.from_dict(coder1_records)
+    df2 = pd.DataFrame.from_dict(coder2_records)
+    df3 = pd.DataFrame.from_dict(coder3_records)
+    df1 = assign_trial_id(df1, begin_code=coder1_begin_code)
+    df2 = assign_trial_id(df2, begin_code=coder2_begin_code)
+    if not df3.empty:
+        df3 = assign_trial_id(df3, begin_code=coder3_begin_code)
+        df3[trial_id_col] = [coder3_trial_id_lookup.get(i, i) \
+                            for i in df3[trial_id_col].values]
+    dfs = {1:df1, 2:df2, 3:df3}
+    filenames= {1: code1_filename, 2:code2_filename, 3:code3_filename}
+    dfts = []
+    for _, row in compare_df.iterrows():
+        if row["trial_is_usable"]:
+            t = dfs[row["which_coder"]]
+            t["from_coder"] = row["which_coder"]
+            t["from_filename"] = filenames[row["which_coder"]]
+            t = t[t["trial_id"] == row["trial_id"]]
+            dfts.append(t)
+    dft = pd.concat(dfts)
 
-
-def combine_coding(records, trial_id_col=app.config["TRIAL_ID_COL"]):
-    dft = pd.DataFrame.from_dict(records)
-    if "which_coder" not in dft.columns:   # twoway coding
-        dft["which_coder"] = 1
-    cols_clean = [trial_id_col]
-    cols_clean.extend([ os.path.splitext(c)[0] for c in dft.columns if c.endswith(".1") ])
-    dft = dft.apply(combine_coding_per_row, args=(trial_id_col,), axis=1)
-    dft = dft[cols_clean].fillna(0)
     return dft
