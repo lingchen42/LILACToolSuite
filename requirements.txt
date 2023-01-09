@@ -8,5 +8,5 @@ Flask-Bootstrap4
 Flask-WTF
 Flask-Session
 plotly
-moviepy
+moviepy==1.0.3
 XlsxWriter
