@@ -535,5 +535,9 @@ def combine_coding(compare_records,
             t = t[t["trial_id"] == row["trial_id"]]
             dfts.append(t)
     dft = pd.concat(dfts)
+    cols = list(dft.columns)
+    cols.remove(trial_id_col)
+    cols.insert(1, trial_id_col)
+    dft = dft[cols]
 
     return dft

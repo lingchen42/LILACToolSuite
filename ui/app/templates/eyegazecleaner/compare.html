@@ -79,8 +79,8 @@
                             for (const [key, ind] of Object.entries(inds)) {
                                 var cellind = `td:eq(${ind})`;
                                 if( data[ind] > threshold){
-                                        $(row).find(cellind).css('color', 'red');
-                                        $(row).find('td:eq(0)').css('color', 'red');
+                                        $(row).find(cellind).css('background-color', '#FDCB63');
+                                        $(row).find('td:eq(0)').css('background-color', '#FDCB63');
                                      };
 
                             };
