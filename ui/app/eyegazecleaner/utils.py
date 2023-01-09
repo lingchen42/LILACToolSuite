@@ -1,4 +1,5 @@
 import re
+import os
 import traceback
 import numpy as np
 import pandas as pd
@@ -448,7 +449,7 @@ def colorcode_threeway_comparison(dft, resolution_df,
         for c in row.index:
             if c == "index":
                 dft.at[row[c], "which_coder"] =\
-                    max(row["coder_with_most_agreement"])
+                    min(row["coder_with_most_agreement"])
 
     t = highlight_compare_two_discrepancy(dft, threshold)
     for _, row in resolution_df.iterrows():
@@ -488,4 +489,26 @@ def threeway_comparison(records12, unit1, records3, unit3, threshold):
     resolution_df = threeway_resolution(dft, df3, to_fix_trials, threshold)
     dft = colorcode_threeway_comparison(dft, resolution_df,
                                         threshold)
+    return dft, resolution_df
+
+
+def combine_coding_per_row(row, trial_id_col):
+    which_coder = int(row["which_coder"])
+    cols = [trial_id_col]
+    cols_clean = [trial_id_col]
+    cols_clean.extend([ os.path.splitext(c)[0] for c in row.index if c.endswith(".%s"%which_coder) ])
+    cols.extend([ c for c in row.index if c.endswith(".%s"%which_coder) ])
+    t = row[cols]
+    t.index = cols_clean
+    return t
+
+
+def combine_coding(records, trial_id_col=app.config["TRIAL_ID_COL"]):
+    dft = pd.DataFrame.from_dict(records)
+    if "which_coder" not in dft.columns:   # twoway coding
+        dft["which_coder"] = 1
+    cols_clean = [trial_id_col]
+    cols_clean.extend([ os.path.splitext(c)[0] for c in dft.columns if c.endswith(".1") ])
+    dft = dft.apply(combine_coding_per_row, args=(trial_id_col,), axis=1)
+    dft = dft[cols_clean].fillna(0)
     return dft

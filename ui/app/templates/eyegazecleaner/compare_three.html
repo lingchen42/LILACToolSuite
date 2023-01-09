@@ -13,6 +13,9 @@
             <div class="row" style="margin-top: 20px;">
                 <a href="{{ url_for('eyegazecleaner.export_compare_three', coder1_id=coder1_id, coder2_id=coder2_id, coder3_id=coder3_id) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">Export Comparison Result</a>
             </div>
+            <div class="row" style="margin-top: 20px;">
+                <a href="{{ url_for('eyegazecleaner.export_combined', coder1_id=coder1_id, coder2_id=coder2_id, coder3_id=None) }}" class="btn btn-primary btn-sm active" role="button" aria-pressed="true">Export Combined Result</a>
+            </div>
         </div>
         <div class="col-8" style="margin-left: 20px;">
             <div class="row">
@@ -21,11 +24,40 @@
             <div class="overflow-x:scroll max-width:20%">
                 {{ styled_df_html | safe}}
             </div>
+            <div class="overflow-x:scroll max-width:20%">
+                <div class="row" style="margin-top:20px;">
+                    <h4> Discrepancy Resolution Step</h4>
+                </div>
+                {% if resolution_columns|length %}
+                <div class="row">
+                    <div style="overflow-y:scroll; max-height:80vh">
+                        <table class="styled-table" id="datainput2">
+                            <thead>
+                                <tr>
+                                {% for col in resolution_columns %}
+                                    <th>{{col}}</th>
+                                {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in resolution_records %}
+                                <tr>
+                                {% for col in row %}
+                                    <td>{{ row[col]|safe }}</td>
+                                {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div> 
+                {% endif %}
+            </div>
         </div>
     </div>
     <hr>
     <div>
-            <li><small></small></li>
+            <li><small>Discrepancy Resolution Step shows the selection process of the most reliable coder for trials with discrepancy</small></li>
     </div>
 </div>
 
@@ -34,6 +66,17 @@
     $(document).ready( function () {
         $.noConflict();
         $('#datainput').DataTable( {
+            dom: 'Bfrtip',
+            buttons: [
+                'excelHtml5',
+                'csvHtml5',
+                {
+                    extend: 'colvis',
+                    columns: ':not(.noVis)'
+                }
+            ],
+        } );
+        $('#datainput2').DataTable( {
             dom: 'Bfrtip',
             buttons: [
                 'excelHtml5',

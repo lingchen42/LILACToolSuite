@@ -532,6 +532,8 @@ def compare_three():
     status_df = pd.DataFrame.from_dict(status_records)
     files = list(status_df["Filename"].values)
     form = CompareThreeInput(files=files)
+    resolution_columns = []
+    resolution_records = []
     styled_df_html = "To be generated"
     coder1 = session.get('eyegazercleaner_code1')
     coder1_id = session.get('eyegazercleaner_code1_id')
@@ -590,7 +592,7 @@ def compare_three():
                 coder3_summary_records = coder3_summary_df.to_dict("records")
                 session["%s_summary_records"%coder3_id] = coder3_summary_records
 
-        dft = threeway_comparison(coder12_compair_records, 
+        dft, resolution_df = threeway_comparison(coder12_compair_records, 
                                  coder1_timestsamp_unit,
                                  coder3_summary_records, 
                                  coder3_timestsamp_unit,
@@ -600,8 +602,12 @@ def compare_three():
                                  dft.to_html())
         buffer = BytesIO()
         dft.to_excel(buffer, sheet_name = "ComparisonResult", index=False)
-        session["compare_three_%s_%s_%s"%(coder1_id, coder2_id, coder3_id)] =\
+        session["compare_three_html_%s_%s_%s"%(coder1_id, coder2_id, coder3_id)] =\
             buffer
+        session["compare_three_records_%s_%s_%s"%(coder1_id, coder2_id, coder3_id)] =\
+            dft.data.to_dict("records")
+        resolution_records = resolution_df.to_dict("records")
+        resolution_columns = resolution_df.columns
     
     return render_template("eyegazecleaner/compare_three.html",
                             form=form,
@@ -609,13 +615,15 @@ def compare_three():
                             coder2_id=coder2_id,
                             coder3_id=coder3_id,
                             styled_df_html=styled_df_html,
+                            resolution_records=resolution_records,
+                            resolution_columns=resolution_columns,
                             )
 
 
 @bp.route("/export_compare_three", methods=["GET"])
 @bp.route("/export_compare_three/<coder1_id>/<coder2_id>/<coder3_id>", methods=["GET"])
 def export_compare_three(coder1_id=None, coder2_id=None, coder3_id=None):
-    dft_bytes = session.get("compare_three_%s_%s_%s"%(coder1_id, coder2_id, coder3_id))
+    dft_bytes = session.get("compare_three_html_%s_%s_%s"%(coder1_id, coder2_id, coder3_id))
     if dft_bytes is None:
         return render_template("error.html", 
                     message="No comparison results found for the requested "\
@@ -636,3 +644,43 @@ def export_compare_three(coder1_id=None, coder2_id=None, coder3_id=None):
             }
         return Response(dft_bytes.getvalue(), mimetype='application/vnd.ms-excel', 
                         headers=headers)
+
+
+@bp.route("/export_combined", methods=["GET"])
+@bp.route("/export_combined/<coder1_id>/<coder2_id>/", methods=["GET"])
+@bp.route("/export_combined/<coder1_id>/<coder2_id>/<coder3_id>", methods=["GET"])
+def export_combined(coder1_id=None, coder2_id=None, coder3_id=None):
+    coder_file_id_dict = session.get("eyegaze_file_id_dict", {})
+    print(coder1_id, coder2_id)
+    if coder1_id and coder2_id:
+        coder1_filename = coder_file_id_dict.get(coder1_id, coder1_id)
+        coder2_filename = coder_file_id_dict.get(coder2_id, coder2_id)
+
+        if coder3_id:
+            # export compare three results
+            coder3_filename = coder_file_id_dict.get(coder3_id, coder2_id)
+            records = session.get("compare_three_records_%s_%s_%s"\
+                                %(coder1_id, coder2_id, coder3_id))
+            dft = combine_coding(records)
+            outfn = "CodingCombinedFromThreeCoders_%s-%s-%s.csv"\
+                            %(os.path.splitext(coder1_filename)[0],
+                            os.path.splitext(coder2_filename)[0],
+                            os.path.splitext(coder3_filename)[0])
+            return Response(
+                            dft.to_csv(index=False),
+                            mimetype="text/csv",
+                            headers={"Content-disposition":
+                                    "attachment; filename=%s"%outfn})
+
+        else: # pair compare combined
+            records = session.get("compare_two_records_%s_%s"\
+                                %(coder1_id, coder2_id))
+            dft = combine_coding(records)
+            outfn = "CodingCombinedFromTwoCoders_%s-%s.csv"\
+                            %(os.path.splitext(coder1_filename)[0],
+                            os.path.splitext(coder2_filename)[0])
+            return Response(
+                            dft.to_csv(index=False),
+                            mimetype="text/csv",
+                            headers={"Content-disposition":
+                                    "attachment; filename=%s"%outfn})
