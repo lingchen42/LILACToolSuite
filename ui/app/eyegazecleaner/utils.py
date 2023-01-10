@@ -344,12 +344,12 @@ def add_coder3_to_paircomparison(df12, df3,
     trial_id_col="trial_id"):
     
     df3 = df3.copy()
-    
     coder3_trial_id_in_coder1 = []
     to_fix_trials = []
     for ind, row in df3.iterrows():
-        begin = row["B"]
-        end = row["S"]
+        begin = int(row["B"])
+        end = int(row["S"])
+        coder3_trial_id = int(row[trial_id_col])
         v1 = df12.apply(get_overlap_frac, args=(begin, end, begin_code+'.1', end_code+'.1'), axis=1)
         which_coder1_trial = df12.iloc[np.argmax(v1)][trial_id_col]
         which_coder1_trial_ind = np.argmax(v1)
@@ -360,11 +360,23 @@ def add_coder3_to_paircomparison(df12, df3,
         which_coder2_trial = df12.iloc[np.argmax(v2)][trial_id_col]
 
         if (which_coder1_trial != which_coder2_trial):
-            error_message = "CANNOT PLACE THE CODER 3 TRIAL "\
-                  "IN CODER 1 and 2 coding files,"\
-                  " make sure coder 1-3 are coding the same trials. Details:"\
-                  "coder3 trial %s map to trial %s in coder1; map to trial %s in coder2"\
-                    %(ind, which_coder1_trial, which_coder2_trial)
+            v1 = v1.to_frame().round(2).reset_index()
+            v1.columns = ["coder1_trial_id", "overlap_frac_with_coder3_trial_%s"%coder3_trial_id]
+            v1 = v1.to_string(index=False, header=True)
+            v2 = v2.to_frame().round(2).reset_index()
+            v2.columns = ["coder2_trial_id", "overlap_frac_with_coder3_trial_%s"%coder3_trial_id]
+            v2 = v2.to_string(index=False, header=True)
+            error_message = "CANNOT PLACE THE CODER 3 TRIAL!\n"\
+                  "In coder 1 and 2 coding files,"\
+                  " make sure coder 1-3 are coding the same trials. Details: \n"\
+                  "coder3 trial %s map to trial %s in coder1.\n"\
+                  "coder3 trial %s map to trial %s in coder2.\n"\
+                  "coder3 trial %s begin: %s end: %s.\n"\
+                  "Overlap with coder1 trials:\n%s\n"\
+                  "Overlap with coder2 trials:\n%s\n"\
+                  %(coder3_trial_id, which_coder1_trial, 
+                   coder3_trial_id, which_coder2_trial,
+                   coder3_trial_id, begin, end, v1, v2)
             return False, error_message, None, [], {} 
         if np.max(v1) == 0:
             error_message = "CANNOT PLACE THE CODER 3 TRIAL "\

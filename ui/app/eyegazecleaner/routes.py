@@ -428,7 +428,7 @@ def compare_two():
         coder2_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder2_id)
         if coder1_timestsamp_unit == "millisecond":
             timestamp_unit = "millisecond"
-            diff_threshold = app.config["DISCRENPANCY_THRESHOLD_millisecond"]
+            diff_threshold = app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"]
         else:
             timestamp_unit = "frame"
             diff_threshold = app.config["DISCRENPANCY_THRESHOLD_FRAME"]
@@ -485,7 +485,7 @@ def compare_two():
     else:
         records = columns = []
         timestamp_unit = "millisecond"
-        diff_threshold = app.config["DISCRENPANCY_THRESHOLD_millisecond"]
+        diff_threshold = app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"]
         diff_col_indices = []
         coder1_id = None
         coder2_id = None
@@ -510,7 +510,7 @@ def export_compare_two(coder1_id=None, coder2_id=None):
         # format it
         threshold= session.get("compare_two_threshold_%s_%s"\
                                %(coder1_id, coder2_id),
-                               app.config["DISCRENPANCY_THRESHOLD_millisecond"])
+                               app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"])
         df = highlight_compare_two_discrepancy(df, threshold)
         buffer = BytesIO()
         df.to_excel(buffer, sheet_name = "ComparisonResult", index=False)
