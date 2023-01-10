@@ -223,9 +223,9 @@ def quality_check(file_id):
         # count default begin code
         b_counts = list(dft[app.config["CODE_COL"]].values)\
                             .count(app.config["BEGIN_CODE"]) 
-        form = QualityCheckInput(codes=codes, expected_num_trials=b_counts)
 
         if request.method == "GET":
+            form = QualityCheckInput(codes=codes, expected_num_trials=int(b_counts))
             begin_code = session.get('%s_begin_code'%file_id)
             if begin_code is not None: 
                 setattr(getattr(form, "begin_code"), "data", begin_code)
@@ -238,6 +238,9 @@ def quality_check(file_id):
             expected_num_trials = session.get("%s_expected_num_trials"%file_id) 
             if expected_num_trials is not None:
                 setattr(getattr(form, "expected_num_trials"), "data", expected_num_trials)
+        else:
+            # in post request you don't want to override data
+            form = QualityCheckInput(codes=codes)
         
         if form.validate_on_submit():
             session['%s_begin_code'%file_id] = form.begin_code.data

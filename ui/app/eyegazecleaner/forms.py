@@ -39,7 +39,8 @@ class BatchInput(FlaskForm):
 
 
 class QualityCheckInput(FlaskForm):
-    expected_num_trials = IntegerField("How many trials are you expecting")
+    expected_num_trials = IntegerField("How many trials are you expecting",
+                                       default=None)
     begin_code = SelectField("Which code is the beginning code?",
                         default=app.config["BEGIN_CODE"], choices=[])
     end_code = SelectField("Which code is the end code?",
@@ -53,9 +54,9 @@ class QualityCheckInput(FlaskForm):
         if len(codes):
             self.begin_code.choices = rearrange_codes(codes)
             self.end_code.choices = rearrange_codes(codes)
-            self.eligible_codes.default = ",".join(rearrange_codes(codes))
+            self.eligible_codes.data = ",".join(rearrange_codes(codes))
         if expected_num_trials:
-            self.expected_num_trials.default = expected_num_trials
+            self.expected_num_trials.data = expected_num_trials
 
 
 class CompareTwoInput(FlaskForm):
