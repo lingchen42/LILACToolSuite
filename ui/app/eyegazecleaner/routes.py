@@ -115,6 +115,8 @@ def batch_input():
         if os.path.exists(folder_path):
             fns = glob(os.path.join(folder_path, "*csv"))
             fns.extend(glob(os.path.join(folder_path, "*xlsx")))
+        else:
+            fns = []
         session["batch_original_timestamp_unit"] = form.original_timestamp_unit.data
         session["batch_target_timestamp_unit"] = form.target_timestamp_unit.data
         session["batch_begin_code"] = form.begin_code.data
@@ -549,6 +551,8 @@ def compare_three():
     coder1_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder1_id)
     coder2 = session.get('eyegazercleaner_code2')
     coder2_id = session.get('eyegazercleaner_code2_id')
+    coder3 = session.get('eyegazercleaner_code3')
+    coder3_id = session.get('eyegazercleaner_code3_id')
     coder12_compair_records \
         = session.get("compare_two_records_%s_%s"%(coder1_id, coder2_id), [])
     if not (coder1 and coder2 and coder1_id and coder2_id \
@@ -561,10 +565,8 @@ def compare_three():
         setattr(getattr(form, "coder1_id"), "data", coder1_id)
         setattr(getattr(form, "coder2"), "data", coder2)
         setattr(getattr(form, "coder2_id"), "data", coder2_id)
-        coder3 = session.get('eyegazercleaner_code3')
         if coder3 is not None:
            setattr(getattr(form, "coder3"), "data", coder3) 
-        coder3_id = session.get('eyegazercleaner_code3_id')
         if coder3_id is not None:
            setattr(getattr(form, "coder3_id"), "data", coder3_id) 
 

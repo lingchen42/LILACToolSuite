@@ -245,8 +245,13 @@ def get_trial_summary(df, code_col=app.config["CODE_COL"],
     return summary_df
 
 
-def milisecond_to_readable_ts(row, begin_code_col):
-    return str(timedelta(seconds=int(row[begin_code_col]/1000)))
+def to_readable_ts(row, begin_code_col, unit="milisecond"):
+    t = row[begin_code_col]
+    if unit == "frame":
+        # covert to milisecond
+        t = t * (100/3)
+    t = t / 1000
+    return str(timedelta(seconds=t))
 
 
 def run_trial_summary_comparison_two(records1, unit1, 
@@ -273,8 +278,15 @@ def run_trial_summary_comparison_two(records1, unit1,
             else:
                 dft["%s.diff"%c] = np.abs(dft["%s.1"%c] - dft["%s.2"%c])
                 ordered_cols.extend(["%s.1"%c, "%s.2"%c, "%s.diff"%c])
-    dft["%s.hh:mm:ss.timestamp"%begin_code] = dft.apply(milisecond_to_readable_ts, 
-                    args=("%s.1"%begin_code, ), axis=1)
+
+    if unit1 == "milisecond":
+        dft["%s.hh:mm:ss.timestamp"%begin_code] \
+            = dft.apply(to_readable_ts, 
+                        args=("%s.1"%begin_code, "milisecond"), axis=1)
+    else:
+        dft["%s.hh:mm:ss.timestamp"%begin_code] \
+            = dft.apply(to_readable_ts, 
+                        args=("%s.1"%begin_code, "frame"), axis=1)
     ordered_cols.insert(1, "%s.hh:mm:ss.timestamp"%begin_code)
             
     dft = dft[ordered_cols]
@@ -524,7 +536,6 @@ def threeway_comparison(records12, unit1, records3, unit3, threshold,
 
     add_trial3_status, error_message, dft, to_fix_trials, coder3_trial_id_lookup \
         = add_coder3_to_paircomparison(df12, df3)
-    dft = dft.round(2)
     if add_trial3_status:
         resolution_df = threeway_resolution(dft, df3, to_fix_trials, threshold)
         dft = colorcode_threeway_comparison(dft, resolution_df,

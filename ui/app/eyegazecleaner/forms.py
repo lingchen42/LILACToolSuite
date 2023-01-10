@@ -75,14 +75,11 @@ class CompareTwoInput(FlaskForm):
 
 
 class CompareThreeInput(FlaskForm):
-    coder1 = SelectField("Select coder 1 file", choices=[], 
-                         render_kw={"readonly": True})
+    coder1 = StringField("Coder 1", render_kw={"readonly": True})
     coder1_id = StringField("Code 1 File ID", 
                              render_kw={"readonly": True})
-    coder2 = SelectField("Select coder 2 file", choices=[],
-                        render_kw={"readonly": True})
-    coder2_id = StringField("Code 2 File ID", 
-                             render_kw={"readonly": True})
+    coder2 = StringField("Coder 2", render_kw={"readonly": True})
+    coder2_id = StringField("Coder 2 File ID", render_kw={"readonly": True})
     coder3 = SelectField("Select coder 3 file", choices=[])
     coder3_id = StringField("Code 3 File ID", 
                              render_kw={"readonly": True})
@@ -91,20 +88,15 @@ class CompareThreeInput(FlaskForm):
     def __init__(self, files=[], *args, **kwargs):
         super().__init__(*args, **kwargs)
         if len(files):
-            self.coder1.choices = files
-            self.coder2.choices = files
             self.coder3.choices = files
 
 
 class CustomCombine(FlaskForm):
-    coder1 = SelectField("Select coder 1 file", choices=[], 
-                         render_kw={"readonly": True})
+    coder1 = StringField("Coder 1", render_kw={"readonly": True})
     coder1_id = StringField("Code 1 File ID", 
                              render_kw={"readonly": True})
-    coder2 = SelectField("Select coder 2 file", choices=[],
-                        render_kw={"readonly": True})
-    coder2_id = StringField("Code 2 File ID", 
-                             render_kw={"readonly": True})
+    coder2 = StringField("Coder2", render_kw={"readonly": True})
+    coder2_id = StringField("Code 2", render_kw={"readonly": True})
     coder3 = SelectField("Select coder 3 file", choices=[])
     coder3_id = StringField("Code 3 File ID")
     custom_compare_three_fn = FileField("Upload a customized two/three "\
@@ -117,7 +109,5 @@ class CustomCombine(FlaskForm):
     def __init__(self, files=[], *args, **kwargs):
         super().__init__(*args, **kwargs)
         if len(files):
-            self.coder1.choices = files
-            self.coder2.choices = files
             self.coder3.choices = files
             self.coder3.choices.append("NA")
