@@ -135,9 +135,9 @@ def check_non_beginning_nor_end_code_has_on_off_set(df,
     no_onset_value_rows = dft[dft["onset"] == 0]
     no_offset_value_rows = dft[dft["offset"] == 0]
     if (len(no_onset_value_rows) == 0) and (len(no_offset_value_rows) == 0):
-        return True
+        return True, [], []
     else:
-        return False
+        return False, list(no_onset_value_rows.index), list(no_offset_value_rows.index),  
 
 
 def update_status_df(file_id, column, value, session, 
@@ -170,7 +170,8 @@ def run_quality_check(dft, file_id, session,
     session['%s_num_trials_match_expectation'%file_id] \
        = num_trials_match_expectation
 
-    onset_offset_check = check_non_beginning_nor_end_code_has_on_off_set(dft, 
+    onset_offset_check, _, _ \
+        = check_non_beginning_nor_end_code_has_on_off_set(dft, 
                 code_col=code_col,
                 beginning_code=begin_code, 
                 ending_code=end_code)

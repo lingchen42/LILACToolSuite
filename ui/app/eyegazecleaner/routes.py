@@ -262,11 +262,14 @@ def quality_check(file_id):
             session['%s_num_trials_match_expectation'%file_id] \
                 = (num_trials == form.expected_num_trials.data)
 
-            onset_offset_check = check_non_beginning_nor_end_code_has_on_off_set(dft, 
+            onset_offset_check, no_onset_inds, no_offset_inds\
+                = check_non_beginning_nor_end_code_has_on_off_set(dft, 
                         code_col="code",
                         beginning_code=form.begin_code.data, 
                         ending_code=form.end_code.data)
             session['%s_onset_offset_check'%file_id] = onset_offset_check
+            session["%s_no_onset_inds"%file_id] = no_onset_inds
+            session["%s_no_offset_inds"%file_id] = no_offset_inds
 
         eligible_codes_okay = session.get("%s_eligible_codes_okay"%file_id, 'Not checked')
         if eligible_codes_okay == "Not checked":
@@ -279,6 +282,8 @@ def quality_check(file_id):
         else:
             bool_paired_begin_and_end = bool(paired_begin_and_end)
         onset_offset_check = session.get("%s_onset_offset_check"%file_id, 'Not checked')
+        no_onset_inds = session.get("%s_no_onset_inds"%file_id, "Not checked")
+        no_offset_inds = session.get("%s_no_offset_inds"%file_id, "Not checked")
         if onset_offset_check == "Not checked":
             bool_onset_offset_check = False
         else:
@@ -301,14 +306,20 @@ def quality_check(file_id):
                     "Eligible Codes are correct", 
                     "Trial has paired beginning and end", 
                     "Detected Num of Trials",
+                    "Expected Num of Trials",
                     "Num of Trials match expectation",
-                    "All non beginning or ending code has onset and offset"],
+                    "All non beginning or ending code has onset and offset",
+                    "No onset record index",
+                    "No offset record index"],
             "Result": [overall_quality, 
                     eligible_codes_okay, 
                     paired_begin_and_end,
                     num_trials,
+                    form.expected_num_trials.data,
                     num_trials_match_expectation,
-                    onset_offset_check],
+                    onset_offset_check,
+                    no_onset_inds,
+                    no_offset_inds],
             })
         quality_df =  quality_df.reset_index()
         quality_records = quality_df.to_dict("records")
