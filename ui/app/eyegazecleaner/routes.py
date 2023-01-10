@@ -693,7 +693,6 @@ def export_compare_three(coder1_id=None, coder2_id=None, coder3_id=None):
 @bp.route("/export_combined/<coder1_id>/<coder2_id>/<coder3_id>/<custom_combine_id>", methods=["GET"])
 def export_combined(coder1_id=None, coder2_id=None, coder3_id=None, 
                     custom_combine_id=None):
-    print("CUSTOM COMBINE ID", custom_combine_id)
     coder_file_id_dict = session.get("eyegaze_file_id_dict", {})
     if coder1_id and coder2_id:
         coder1_filename = coder_file_id_dict.get(coder1_id, coder1_id)
