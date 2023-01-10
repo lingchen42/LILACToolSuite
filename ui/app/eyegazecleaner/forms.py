@@ -11,11 +11,11 @@ class DataInput(FlaskForm):
                     validators=[FileAllowed(['csv', 'xlsx'],
                                  "Only csv/xlsx file is accepted")])
     original_timestamp_unit = SelectField("Select original timestamp unit",
-                          choices=["milisecond", "frame"],
-                          default="milisecond")
+                          choices=["millisecond", "frame"],
+                          default="millisecond")
     target_timestamp_unit = SelectField("Select target timestamp unit",
-                          choices=["milisecond", "frame"],
-                          default="milisecond")
+                          choices=["millisecond", "frame"],
+                          default="millisecond")
     submit = SubmitField('Upload')
 
 
@@ -23,13 +23,13 @@ class BatchInput(FlaskForm):
     folder_path = StringField("Enter the absolute folder path that "\
                                     "contain Eyegaze Coding csv/xlsx files")
     original_timestamp_unit = SelectField("Select original timestamp unit",
-                          choices=["milisecond", "frame"],
-                          default="milisecond")
+                          choices=["millisecond", "frame"],
+                          default="millisecond")
     target_timestamp_unit = SelectField("Select target timestamp unit",
-                          choices=["milisecond", "frame"],
-                          default="milisecond")
+                          choices=["millisecond", "frame"],
+                          default="millisecond")
     expected_num_trials = IntegerField("How many trials are you expecting?")
-    begin_code = StringField("Which code is the begining code?",
+    begin_code = StringField("Which code is the beginning code?",
                         default=app.config["BEGIN_CODE"])
     end_code = StringField("Which code is the end code?",
                         default=app.config["END_CODE"])
@@ -40,7 +40,7 @@ class BatchInput(FlaskForm):
 
 class QualityCheckInput(FlaskForm):
     expected_num_trials = IntegerField("How many trials are you expecting")
-    begin_code = SelectField("Which code is the begining code?",
+    begin_code = SelectField("Which code is the beginning code?",
                         default=app.config["BEGIN_CODE"], choices=[])
     end_code = SelectField("Which code is the end code?",
                         default=app.config["END_CODE"], choices=[])

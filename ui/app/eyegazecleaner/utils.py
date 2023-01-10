@@ -20,10 +20,10 @@ def assign_trial_id(df, code_col=app.config["CODE_COL"],
     return df
 
 
-def convert_milisecond_to_frame(df, scale=0.03, file_type="raw_coding_file",
+def convert_millisecond_to_frame(df, scale=0.03, file_type="raw_coding_file",
     onset_col=app.config["ONSET_COL"],
     offset_col=app.config["OFFSET_COL"]):
-    ''' 30 frame in 1000 miliseconds; 1 miliseconds = 0.03 frame.
+    ''' 30 frame in 1000 milliseconds; 1 milliseconds = 0.03 frame.
 
     Note that we are rounding the results not just taking the integer portion
     '''
@@ -41,10 +41,10 @@ def convert_milisecond_to_frame(df, scale=0.03, file_type="raw_coding_file",
     return df
 
 
-def convert_frame_to_milisecond(df, scale=100/3, file_type="raw_coding_file",
+def convert_frame_to_millisecond(df, scale=100/3, file_type="raw_coding_file",
     onset_col=app.config["ONSET_COL"],
     offset_col=app.config["OFFSET_COL"]):
-    ''' 30 frame in 1000 miliseconds; 1 frame = 1000/30 miliseconds.
+    ''' 30 frame in 1000 milliseconds; 1 frame = 1000/30 milliseconds.
 
     Note that we are rounding the results not just taking the integer portion
     '''
@@ -88,12 +88,12 @@ def read_data(fn, filepath, original_timestamp_unit,
                             "%s"%(fn, traceback.format_exc())
     if df is not None :
         df = df.fillna(0)
-        if (original_timestamp_unit == "milisecond") \
+        if (original_timestamp_unit == "millisecond") \
             and (target_timestamp_unit == "frame"):
-            df = convert_milisecond_to_frame(df)
+            df = convert_millisecond_to_frame(df)
         if (original_timestamp_unit == "frame") \
-            and (target_timestamp_unit == "milisecond"):
-            df = convert_frame_to_milisecond(df)
+            and (target_timestamp_unit == "millisecond"):
+            df = convert_frame_to_millisecond(df)
         
     return df, error_message
 
@@ -104,34 +104,34 @@ def check_eligible_codes_match(codes, eligible_codes):
 
 
 def check_trial_begin_and_end_are_paired(df, code_col=app.config["CODE_COL"],
-    begining_code=app.config["BEGIN_CODE"], ending_code=app.config["END_CODE"]):
-    dft = df[df[code_col].isin([begining_code, ending_code])]
+    beginning_code=app.config["BEGIN_CODE"], ending_code=app.config["END_CODE"]):
+    dft = df[df[code_col].isin([beginning_code, ending_code])]
     codes = list(dft[code_col].values)
     code_stack = []
     try:
         for code in codes:
-            if code == begining_code:
+            if code == beginning_code:
                 # everytime a new trial begins,
-                # we must found previous trial has a paired begining and end
-                assert len(code_stack) == 0, "Trial has unpaired begining and end"
+                # we must found previous trial has a paired beginning and end
+                assert len(code_stack) == 0, "Trial has unpaired beginning and end"
                 code_stack.append(code)
             if code == ending_code:
                 code_stack.pop()
                 # everytime a trail ends
-                # it must pop up its begining, leave the code stack empty
-                assert len(code_stack) == 0, "Trial has unpaired begining and end"
-        # at the end, there should not be any unpaired beginings
-        assert len(code_stack) == 0, "Trial has unpaired begining and end"
+                # it must pop up its beginning, leave the code stack empty
+                assert len(code_stack) == 0, "Trial has unpaired beginning and end"
+        # at the end, there should not be any unpaired beginnings
+        assert len(code_stack) == 0, "Trial has unpaired beginning and end"
     except:
-        return False, codes.count(begining_code)
-    return True, codes.count(begining_code)
+        return False, codes.count(beginning_code)
+    return True, codes.count(beginning_code)
 
 
-def check_non_begining_nor_end_code_has_on_off_set(df, 
+def check_non_beginning_nor_end_code_has_on_off_set(df, 
     code_col=app.config["CODE_COL"],
-    begining_code=app.config["BEGIN_CODE"], ending_code=app.config["END_CODE"]):
+    beginning_code=app.config["BEGIN_CODE"], ending_code=app.config["END_CODE"]):
 
-    dft = df[(df[code_col] != begining_code) & (df[code_col] != ending_code)]
+    dft = df[(df[code_col] != beginning_code) & (df[code_col] != ending_code)]
     no_onset_value_rows = dft[dft["onset"] == 0]
     no_offset_value_rows = dft[dft["offset"] == 0]
     if (len(no_onset_value_rows) == 0) and (len(no_offset_value_rows) == 0):
@@ -162,7 +162,7 @@ def run_quality_check(dft, file_id, session,
     paired_begin_and_end, num_trials\
         = check_trial_begin_and_end_are_paired(dft, 
                 code_col=code_col,
-                begining_code=begin_code, 
+                beginning_code=begin_code, 
                 ending_code=end_code)
     num_trials_match_expectation = (num_trials == expected_num_trials)
     session['%s_paired_begin_and_end'%file_id] = paired_begin_and_end
@@ -170,9 +170,9 @@ def run_quality_check(dft, file_id, session,
     session['%s_num_trials_match_expectation'%file_id] \
        = num_trials_match_expectation
 
-    onset_offset_check = check_non_begining_nor_end_code_has_on_off_set(dft, 
+    onset_offset_check = check_non_beginning_nor_end_code_has_on_off_set(dft, 
                 code_col=code_col,
-                begining_code=begin_code, 
+                beginning_code=begin_code, 
                 ending_code=end_code)
     session['%s_onset_offset_check'%file_id] = onset_offset_check
 
@@ -245,10 +245,10 @@ def get_trial_summary(df, code_col=app.config["CODE_COL"],
     return summary_df
 
 
-def to_readable_ts(row, begin_code_col, unit="milisecond"):
+def to_readable_ts(row, begin_code_col, unit="millisecond"):
     t = row[begin_code_col]
     if unit == "frame":
-        # covert to milisecond
+        # covert to millisecond
         t = t * (100/3)
     t = t / 1000
     return str(timedelta(seconds=t))
@@ -261,10 +261,10 @@ def run_trial_summary_comparison_two(records1, unit1,
 
     if unit1 != unit2:  # convert coder2 to use the same unit as coder1
         if (unit1 == "frame") \
-                and (unit2 == "milisecond"):
-                df2 = convert_milisecond_to_frame(df2, filetype="trial_summary")
+                and (unit2 == "millisecond"):
+                df2 = convert_millisecond_to_frame(df2, filetype="trial_summary")
         else:
-            df2 = convert_frame_to_milisecond(df2, filetype="trial_summary") 
+            df2 = convert_frame_to_millisecond(df2, filetype="trial_summary") 
 
     dft = df1.join(df2, lsuffix='.1', rsuffix='.2')
     ordered_cols = []
@@ -279,10 +279,10 @@ def run_trial_summary_comparison_two(records1, unit1,
                 dft["%s.diff"%c] = np.abs(dft["%s.1"%c] - dft["%s.2"%c])
                 ordered_cols.extend(["%s.1"%c, "%s.2"%c, "%s.diff"%c])
 
-    if unit1 == "milisecond":
+    if unit1 == "millisecond":
         dft["%s.hh:mm:ss.timestamp"%begin_code] \
             = dft.apply(to_readable_ts, 
-                        args=("%s.1"%begin_code, "milisecond"), axis=1)
+                        args=("%s.1"%begin_code, "millisecond"), axis=1)
     else:
         dft["%s.hh:mm:ss.timestamp"%begin_code] \
             = dft.apply(to_readable_ts, 
@@ -529,10 +529,10 @@ def threeway_comparison(records12, unit1, records3, unit3, threshold,
 
     if unit1 != unit3:  # convert coder2 to use the same unit as coder1
         if (unit1 == "frame") \
-                and (unit3 == "milisecond"):
-                df3 = convert_milisecond_to_frame(df3, filetype="trial_summary")
+                and (unit3 == "millisecond"):
+                df3 = convert_millisecond_to_frame(df3, filetype="trial_summary")
         else:
-            df3 = convert_frame_to_milisecond(df3, filetype="trial_summary") 
+            df3 = convert_frame_to_millisecond(df3, filetype="trial_summary") 
 
     add_trial3_status, error_message, dft, to_fix_trials, coder3_trial_id_lookup \
         = add_coder3_to_paircomparison(df12, df3)

@@ -252,16 +252,16 @@ def quality_check(file_id):
             paired_begin_and_end, num_trials\
                 = check_trial_begin_and_end_are_paired(dft, 
                         code_col="code",
-                        begining_code=form.begin_code.data, 
+                        beginning_code=form.begin_code.data, 
                         ending_code=form.end_code.data)
             session['%s_paired_begin_and_end'%file_id] = paired_begin_and_end
             session['%s_num_trials'%file_id] = num_trials
             session['%s_num_trials_match_expectation'%file_id] \
                 = (num_trials == form.expected_num_trials.data)
 
-            onset_offset_check = check_non_begining_nor_end_code_has_on_off_set(dft, 
+            onset_offset_check = check_non_beginning_nor_end_code_has_on_off_set(dft, 
                         code_col="code",
-                        begining_code=form.begin_code.data, 
+                        beginning_code=form.begin_code.data, 
                         ending_code=form.end_code.data)
             session['%s_onset_offset_check'%file_id] = onset_offset_check
 
@@ -296,10 +296,10 @@ def quality_check(file_id):
         quality_df = pd.DataFrame({
             "Item": ["Overall Quality Pass",
                     "Eligible Codes are correct", 
-                    "Trial has paired begining and end", 
+                    "Trial has paired beginning and end", 
                     "Detected Num of Trials",
                     "Num of Trials match expectation",
-                    "All non begining or ending code has onset and offset"],
+                    "All non beginning or ending code has onset and offset"],
             "Result": [overall_quality, 
                     eligible_codes_okay, 
                     paired_begin_and_end,
@@ -426,9 +426,9 @@ def compare_two():
     if coder1 and coder2:
         coder1_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder1_id)
         coder2_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder2_id)
-        if coder1_timestsamp_unit == "milisecond":
-            timestamp_unit = "milisecond"
-            diff_threshold = app.config["DISCRENPANCY_THRESHOLD_MILISECOND"]
+        if coder1_timestsamp_unit == "millisecond":
+            timestamp_unit = "millisecond"
+            diff_threshold = app.config["DISCRENPANCY_THRESHOLD_millisecond"]
         else:
             timestamp_unit = "frame"
             diff_threshold = app.config["DISCRENPANCY_THRESHOLD_FRAME"]
@@ -484,8 +484,8 @@ def compare_two():
 
     else:
         records = columns = []
-        timestamp_unit = "milisecond"
-        diff_threshold = app.config["DISCRENPANCY_THRESHOLD_MILISECOND"]
+        timestamp_unit = "millisecond"
+        diff_threshold = app.config["DISCRENPANCY_THRESHOLD_millisecond"]
         diff_col_indices = []
         coder1_id = None
         coder2_id = None
@@ -510,7 +510,7 @@ def export_compare_two(coder1_id=None, coder2_id=None):
         # format it
         threshold= session.get("compare_two_threshold_%s_%s"\
                                %(coder1_id, coder2_id),
-                               app.config["DISCRENPANCY_THRESHOLD_MILISECOND"])
+                               app.config["DISCRENPANCY_THRESHOLD_millisecond"])
         df = highlight_compare_two_discrepancy(df, threshold)
         buffer = BytesIO()
         df.to_excel(buffer, sheet_name = "ComparisonResult", index=False)
