@@ -75,7 +75,7 @@ form {
 
 .sidebar-nav li a {
     display: block;
-    text-decoration: none;
+    text-decoration: underline;
     color: #000000;
 }
 
@@ -91,11 +91,13 @@ form {
 
 .sidebar-nav > .sidebar-brand {
     height: 65px;
-    font-size: 18px;
+    font-size: 20px;
+    font-weight: bold;
     line-height: 60px;
 }
 
 .sidebar-nav > .sidebar-brand a {
+    text-decoration: none;
     color: #000000;
 }
 
