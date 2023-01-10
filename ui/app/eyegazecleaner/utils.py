@@ -1,8 +1,8 @@
 import re
-import os
 import traceback
 import numpy as np
 import pandas as pd
+from datetime import timedelta
 from app import app
 
 
@@ -245,7 +245,12 @@ def get_trial_summary(df, code_col=app.config["CODE_COL"],
     return summary_df
 
 
-def run_trial_summary_comparison_two(records1, unit1, records2, unit2):
+def milisecond_to_readable_ts(row, begin_code_col):
+    return str(timedelta(seconds=int(row[begin_code_col]/1000)))
+
+
+def run_trial_summary_comparison_two(records1, unit1, 
+                                     records2, unit2, begin_code):
     df1 = pd.DataFrame.from_dict(records1)
     df2 = pd.DataFrame.from_dict(records2)
 
@@ -268,6 +273,9 @@ def run_trial_summary_comparison_two(records1, unit1, records2, unit2):
             else:
                 dft["%s.diff"%c] = np.abs(dft["%s.1"%c] - dft["%s.2"%c])
                 ordered_cols.extend(["%s.1"%c, "%s.2"%c, "%s.diff"%c])
+    dft["%s.hh:mm:ss.timestamp"%begin_code] = dft.apply(milisecond_to_readable_ts, 
+                    args=("%s.1"%begin_code, ), axis=1)
+    ordered_cols.insert(1, "%s.hh:mm:ss.timestamp"%begin_code)
             
     dft = dft[ordered_cols]
     diff_col_indices = [i for i, c in enumerate(dft.columns) \
@@ -360,7 +368,8 @@ def add_coder3_to_paircomparison(df12, df3,
     dft = pd.merge(df12, df3, how="left", on=trial_id_col)
     
     merged_ordered_cols = ["%s%s"%(re.findall("(.*)[0-9]", c)[0], coder) \
-                           if (c != trial_id_col) and (not c.endswith("diff")) else c \
+                           if (c != trial_id_col) and (not c.endswith("diff") \
+                               and (not c.endswith(".timestamp"))) else c \
                            for c in df12.columns for coder in [1,2,3]]
     res  = []
     _ = [res.append(x) for x in merged_ordered_cols if (x not in res) and (x in dft.columns)]
@@ -385,6 +394,7 @@ def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5):
             ttl += 1
             for coder in winners:
                 counts[coder-1] += 1  # coder 1 indexing
+
     counts = np.array(counts)
     agreement_fracs = counts / ttl 
     winner = np.argwhere(agreement_fracs == np.amax(agreement_fracs))\
@@ -393,10 +403,15 @@ def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5):
     winner_count = np.max(counts)
     highest_agreement_frac = np.max(agreement_fracs)
 
-    if highest_agreement_frac >= agreement_frac_thresh:
+    if ttl == 0:
+        # no discrepancy, in this case, highest agreement frac is nan
+        # but trial should be considered usable
         trial_is_usable = True
     else:
-        trial_is_usable = False
+        if highest_agreement_frac >= agreement_frac_thresh:
+            trial_is_usable = True
+        else:
+            trial_is_usable = False
     return trial_is_usable, winner, ttl, winner_count, highest_agreement_frac
 
 
@@ -509,6 +524,7 @@ def threeway_comparison(records12, unit1, records3, unit3, threshold,
 
     add_trial3_status, error_message, dft, to_fix_trials, coder3_trial_id_lookup \
         = add_coder3_to_paircomparison(df12, df3)
+    dft = dft.round(2)
     if add_trial3_status:
         resolution_df = threeway_resolution(dft, df3, to_fix_trials, threshold)
         dft = colorcode_threeway_comparison(dft, resolution_df,
@@ -557,3 +573,20 @@ def combine_coding(compare_records,
     dft = dft[cols]
 
     return dft
+
+
+def read_custom_combine_data(fn, filepath):
+    '''read csv/excel files'''
+    error_message = ""
+    if fn.endswith("csv"):
+        df = pd.read_csv(filepath)
+    else:
+        try:
+            # xlsx file coded using frame as time unit doesn't have header
+            df = pd.read_excel(filepath)
+        except:
+            df = None
+            error_message = "%s cannot be openned,"\
+                            " please make sure it is csv/xlsx file format\n"\
+                            "%s"%(fn, traceback.format_exc())
+    return df, error_message

@@ -380,7 +380,10 @@ def reset_session():
 def compare_two():
     status_records = session.get("eyegazecleaner_records", [])
     status_df = pd.DataFrame.from_dict(status_records)
-    files = list(status_df["Filename"].values)
+    if len(status_records):
+        files = list(status_df["Filename"].values)
+    else:
+        files = []
     form = CompareTwoInput(files=files)
     columns = []
     records = []
@@ -438,6 +441,8 @@ def compare_two():
             # recompute summary records
             coder1_summary_records = session.get("%s_summary_records"%coder1_id, [])
             coder2_summary_records = session.get("%s_summary_records"%coder2_id, [])
+            begin_code = session.get('%s_begin_code'%coder1_id, 
+                                        app.config["BEGIN_CODE"])
             if not len(coder1_summary_records):
                 records = session.get('%s_records'%coder1_id, [])
                 begin_code = session.get('%s_begin_code'%coder1_id, 
@@ -469,6 +474,7 @@ def compare_two():
                                                 coder1_timestsamp_unit,
                                                 coder2_summary_records,
                                                 coder2_timestsamp_unit,
+                                                begin_code,
                                                 )
             session["compare_two_records_%s_%s"%(coder1_id, coder2_id)] = records
             session["compare_two_columns_%s_%s"%(coder1_id, coder2_id)] = columns
@@ -530,7 +536,10 @@ def export_compare_two(coder1_id=None, coder2_id=None):
 def compare_three():
     status_records = session.get("eyegazecleaner_records", [])
     status_df = pd.DataFrame.from_dict(status_records)
-    files = list(status_df["Filename"].values)
+    if len(status_records):
+        files = list(status_df["Filename"].values)
+    else:
+        files = []
     form = CompareThreeInput(files=files)
     resolution_columns = []
     resolution_records = []
@@ -681,18 +690,23 @@ def export_compare_three(coder1_id=None, coder2_id=None, coder3_id=None):
 @bp.route("/export_combined", methods=["GET"])
 @bp.route("/export_combined/<coder1_id>/<coder2_id>/", methods=["GET"])
 @bp.route("/export_combined/<coder1_id>/<coder2_id>/<coder3_id>", methods=["GET"])
-def export_combined(coder1_id=None, coder2_id=None, coder3_id=None):
+@bp.route("/export_combined/<coder1_id>/<coder2_id>/<coder3_id>/<custom_combine_id>", methods=["GET"])
+def export_combined(coder1_id=None, coder2_id=None, coder3_id=None, 
+                    custom_combine_id=None):
+    print("CUSTOM COMBINE ID", custom_combine_id)
     coder_file_id_dict = session.get("eyegaze_file_id_dict", {})
-    print(coder1_id, coder2_id, coder3_id)
     if coder1_id and coder2_id:
         coder1_filename = coder_file_id_dict.get(coder1_id, coder1_id)
         coder2_filename = coder_file_id_dict.get(coder2_id, coder2_id)
 
-        if coder3_id:
+        if coder3_id and (coder3_id != "NA"):
             # export compare three results
-            coder3_filename = coder_file_id_dict.get(coder3_id, coder2_id)
-            compare_records = session.get("compare_three_records_%s_%s_%s"\
-                                %(coder1_id, coder2_id, coder3_id))
+            coder3_filename = coder_file_id_dict.get(coder3_id, coder3_id)
+            if custom_combine_id:
+                compare_records = session.get("custom_compare_records_%s"%custom_combine_id)
+            else:
+                compare_records = session.get("compare_three_records_%s_%s_%s"\
+                                    %(coder1_id, coder2_id, coder3_id))
             coder1_records = session.get('%s_records'%coder1_id, [])
             coder1_begin_code = session.get('%s_begin_code'%coder1_id, 
                                             app.config["BEGIN_CODE"])
@@ -729,8 +743,11 @@ def export_combined(coder1_id=None, coder2_id=None, coder3_id=None):
                                     "attachment; filename=%s"%outfn})
 
         else: # pair compare combined
-            compare_records = session.get("compare_two_records_%s_%s"\
-                                %(coder1_id, coder2_id))
+            if custom_combine_id:
+                compare_records = session.get("custom_compare_records_%s"%custom_combine_id)
+            else:
+                compare_records = session.get("compare_two_records_%s_%s"\
+                                    %(coder1_id, coder2_id))
             coder1_records = session.get('%s_records'%coder1_id, [])
             coder1_begin_code = session.get('%s_begin_code'%coder1_id, 
                                             app.config["BEGIN_CODE"])
@@ -748,3 +765,70 @@ def export_combined(coder1_id=None, coder2_id=None, coder3_id=None):
                             mimetype="text/csv",
                             headers={"Content-disposition":
                                     "attachment; filename=%s"%outfn})
+
+
+@bp.route("/custom_combine", methods=["GET", "POST"])
+def custom_combine(): 
+    status_records = session.get("eyegazecleaner_records", [])
+    status_df = pd.DataFrame.from_dict(status_records)
+    if len(status_records):
+        files = list(status_df["Filename"].values)
+    else:
+        files = []
+    form = CustomCombine(files)
+    columns = []
+    records = []
+    custom_combine_id = None
+    coder1 = session.get('eyegazercleaner_code1')
+    coder1_id = session.get('eyegazercleaner_code1_id')
+    coder2 = session.get('eyegazercleaner_code2')
+    coder2_id = session.get('eyegazercleaner_code2_id')
+    coder3 = session.get('eyegazercleaner_code3')
+    coder3_id = session.get('eyegazercleaner_code3_id')
+    
+    if not (coder1 and coder2 and coder1_id and coder2_id):
+        return render_template("error.html",
+                message="Please run Pair Compare or Threeway Compare first")
+
+    if request.method == "GET":
+        setattr(getattr(form, "coder1"), "data", coder1)
+        setattr(getattr(form, "coder1_id"), "data", coder1_id)
+        setattr(getattr(form, "coder2"), "data", coder2)
+        setattr(getattr(form, "coder2_id"), "data", coder2_id)
+        if coder3 is not None:
+           setattr(getattr(form, "coder3"), "data", coder3) 
+        if coder3_id is not None:
+           setattr(getattr(form, "coder3_id"), "data", coder3_id) 
+
+    if form.validate_on_submit():
+        fn = form.custom_compare_three_fn.data
+        coder3 = form.coder3.data
+        if coder3 != "NA":
+            coder3_id = status_df[status_df["Filename"] == coder3]["ID"].values[0]
+        else:
+            coder3_id = coder3
+        setattr(getattr(form, "coder3_id"), "data", coder3_id) 
+
+        if fn:
+            filename = secure_filename(fn.filename)
+            with tempfile.NamedTemporaryFile() as tmp:
+                fn.save(tmp.name)
+                dft, error_message \
+                    = read_custom_combine_data(filename, tmp.name)
+                columns = dft.columns
+                records = dft.to_dict("records")
+                custom_combine_id = str(uuid.uuid4())
+                session["custom_compare_records_%s"%custom_combine_id] = records
+
+                if error_message:
+                    return render_template("error.html", 
+                                        message=error_message)
+
+    return render_template("eyegazecleaner/custom_combine.html",
+                            form=form,
+                            columns=columns,
+                            records=records,
+                            coder1_id=coder1_id,
+                            coder2_id=coder2_id,
+                            coder3_id=coder3_id,
+                            custom_combine_id=custom_combine_id)
