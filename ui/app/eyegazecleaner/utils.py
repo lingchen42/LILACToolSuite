@@ -409,7 +409,8 @@ def highlight_coder3_resolution(x, l, color="#EAE7B1"):
     return color_list
 
 
-def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5):
+def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5, 
+                default_winner_coder=app.config["DEFAULT_WINNER_CODER"]):
     counts = [0, 0, 0]
 
     ttl = 0
@@ -432,6 +433,7 @@ def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5):
         # no discrepancy, in this case, highest agreement frac is nan
         # but trial should be considered usable
         trial_is_usable = True
+        winner = default_winner_coder   # default
     else:
         if highest_agreement_frac >= agreement_frac_thresh:
             trial_is_usable = True
@@ -565,10 +567,11 @@ def combine_coding(compare_records,
                    coder3_begin_code=app.config["BEGIN_CODE"],
                    code3_filename="NA",
                    coder3_trial_id_lookup={},
-                   trial_id_col=app.config["TRIAL_ID_COL"]):
+                   trial_id_col=app.config["TRIAL_ID_COL"],
+                   default_winner_coder=app.config["DEFAULT_WINNER_CODER"]):
     compare_df = pd.DataFrame.from_dict(compare_records)
     if "which_coder" not in compare_df.columns:   # twoway coding
-        compare_df["which_coder"] = 1
+        compare_df["which_coder"] = default_winner_coder
     if "trial_is_usable" not in compare_df.columns:
         compare_df["trial_is_usable"] = True
     df1 = pd.DataFrame.from_dict(coder1_records)
