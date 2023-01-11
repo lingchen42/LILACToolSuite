@@ -448,6 +448,8 @@ def highlight_coder3_resolution(x, l, color="#EAE7B1"):
 
 def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5, 
                 default_winner_coder=app.config["DEFAULT_WINNER_CODER"]):
+    predefined_trial_is_usable = row["trial_is_usable"]
+
     counts = [0, 0, 0]
 
     ttl = 0
@@ -466,16 +468,19 @@ def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5,
     winner_count = np.max(counts)
     highest_agreement_frac = np.max(agreement_fracs)
 
-    if ttl == 0:
-        # no discrepancy, in this case, highest agreement frac is nan
-        # but trial should be considered usable
-        trial_is_usable = True
-        winner = [default_winner_coder]   # default
+    if not predefined_trial_is_usable:   # carry over trial is not usable
+        trial_is_usable = predefined_trial_is_usable
     else:
-        if highest_agreement_frac >= agreement_frac_thresh:
+        if ttl == 0:
+            # no discrepancy, in this case, highest agreement frac is nan
+            # but trial should be considered usable
             trial_is_usable = True
+            winner = [default_winner_coder]   # default
         else:
-            trial_is_usable = False
+            if highest_agreement_frac >= agreement_frac_thresh:
+                trial_is_usable = True
+            else:
+                trial_is_usable = False
     return trial_is_usable, winner, ttl, winner_count, highest_agreement_frac
 
 
@@ -486,42 +491,56 @@ def threeway_resolution(dft, df3, to_fix_trials, threshold,
     '''
     to_compare_cols = [c for c in df3.columns if c not in [trial_id_col,'attention.entire.trial']]
     resolution_records = []
-    print(dft.head(), dft.columns)
-    for ind, trial_id in to_fix_trials:
-        row = dft[dft[trial_id_col] == trial_id].iloc[0]
-        record = {"index":ind, trial_id_col : trial_id}
+    diff_cols = [c for c in dft.columns if c.endswith(".diff")]
+    dft["has_discrepancy"] = dft.apply(has_discrepancy, 
+                                    args=(diff_cols, threshold),
+                                    axis=1)
+    to_fix_trials = dft[dft["has_discrepancy"] == 1]
+
+    #for ind, trial_id in to_fix_trials:
+    for ind, row in to_fix_trials.iterrows():
+        #row = dft[dft[trial_id_col] == trial_id].iloc[0]
+        #record = {"index":ind, trial_id_col : trial_id}
+        record = {"index":ind, 
+                   trial_id_col : row[trial_id_col], 
+                   "trial_is_usable": True}
 
         for c in to_compare_cols:
             c1 = row[c+".1"]
             c2 = row[c+".2"]
             c3 = row[c+".3"]
             diff_12 = np.abs(c2 - c1)
-            if diff_12 > threshold: 
-                diff_1 = np.abs(c3 - c1)
-                diff_2 = np.abs(c3 - c2)
+            if np.isfinite(diff_12):
+                if diff_12 > threshold: 
+                    diff_1 = np.abs(c3 - c1)
+                    diff_2 = np.abs(c3 - c2)
 
-                if diff_1 < diff_2:
-                    if diff_1 <= threshold:
-                        record["similarity_winner.%s"%c] = [1,3]
-                    else:
-                        record["similarity_winner.%s"%c] = []
+                    if diff_1 < diff_2:
+                        if diff_1 <= threshold:
+                            record["similarity_winner.%s"%c] = [1,3]
+                        else:
+                            record["similarity_winner.%s"%c] = []
 
-                elif diff_1 == diff_2:
-                    if diff_1 == diff_2 == 0:
-                        record["similarity_winner.%s"%c] = [1,2,3]
-                    elif diff_1 <= threshold:
-                        record["similarity_winner.%s"%c] = [1,2]
+                    elif diff_1 == diff_2:
+                        if diff_1 == diff_2 == 0:
+                            record["similarity_winner.%s"%c] = [1,2,3]
+                        elif diff_1 <= threshold:
+                            record["similarity_winner.%s"%c] = [1,2]
+                        else:
+                            record["similarity_winner.%s"%c] = []
+
                     else:
-                        record["similarity_winner.%s"%c] = []
+                        if diff_2 <= threshold:
+                            record["similarity_winner.%s"%c] = [2,3]
+                        else:
+                            record["similarity_winner.%s"%c] = []
 
                 else:
-                    if diff_2 <= threshold:
-                        record["similarity_winner.%s"%c] = [2,3]
-                    else:
-                        record["similarity_winner.%s"%c] = []
+                    record["similarity_winner.%s"%c] = "NA"
 
-            else:
+            else:  # has nan not usable
                 record["similarity_winner.%s"%c] = "NA"
+                record["trial_is_usable"] = False
 
         resolution_records.append(record)
 
