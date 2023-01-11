@@ -433,7 +433,7 @@ def get_coder_with_most_agreement(row, agreement_frac_thresh=0.5,
         # no discrepancy, in this case, highest agreement frac is nan
         # but trial should be considered usable
         trial_is_usable = True
-        winner = default_winner_coder   # default
+        winner = [default_winner_coder]   # default
     else:
         if highest_agreement_frac >= agreement_frac_thresh:
             trial_is_usable = True
