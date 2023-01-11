@@ -407,6 +407,8 @@ def compare_two():
     coder1_id = session.get('eyegazercleaner_code1_id')
     coder2 = session.get('eyegazercleaner_code2')
     coder2_id = session.get('eyegazercleaner_code2_id')
+    discrepancy_threshold \
+        = session.get('%s_%s_discrepancy_threshold'%(coder1_id, coder2_id))
 
     if request.method == "GET":
         if coder1 is not None: 
@@ -417,6 +419,9 @@ def compare_two():
             setattr(getattr(form, "coder2"), "data", coder2)
         if coder2_id is not None: 
             setattr(getattr(form, "coder2_id"), "data", coder2_id)
+        if discrepancy_threshold is not None:
+            setattr(getattr(form, "discrepancy_threshold"),
+                            "data", discrepancy_threshold)
 
     if form.validate_on_submit():
         coder1 = form.coder1.data
@@ -436,18 +441,19 @@ def compare_two():
         coder_file_id_dict[coder1_id] = coder1
         coder_file_id_dict[coder2_id] = coder2
         session["eyegaze_file_id_dict"] = coder_file_id_dict
+        discrepancy_threshold = form.discrepancy_threshold.data
+        session['%s_%s_discrepancy_threshold'%(coder1_id, coder2_id)] =\
+            discrepancy_threshold
 
     if coder1 and coder2:
         coder1_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder1_id)
         coder2_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder2_id)
         if coder1_timestsamp_unit == "millisecond":
             timestamp_unit = "millisecond"
-            diff_threshold = app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"]
         else:
             timestamp_unit = "frame"
-            diff_threshold = app.config["DISCRENPANCY_THRESHOLD_FRAME"]
         session["compare_two_threshold_%s_%s"%(coder1_id, coder2_id)] \
-            = diff_threshold
+            = discrepancy_threshold
 
         # get precomputed records
         records = session.get("compare_two_records_%s_%s"%(coder1_id, coder2_id), [])
@@ -503,7 +509,7 @@ def compare_two():
     else:
         records = columns = []
         timestamp_unit = "millisecond"
-        diff_threshold = app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"]
+        discrepancy_threshold = app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"]
         diff_col_indices = []
         coder1_id = None
         coder2_id = None
@@ -516,7 +522,7 @@ def compare_two():
                             coder2_id=coder2_id,
                             timestamp_unit=timestamp_unit,
                             diff_col_indices=diff_col_indices,
-                            diff_threshhold=diff_threshold)
+                            discrepancy_threshold=discrepancy_threshold)
 
 
 @bp.route("/export_compare_two", methods=["GET"])
@@ -526,7 +532,7 @@ def export_compare_two(coder1_id=None, coder2_id=None):
     if len(records):
         df = pd.DataFrame.from_records(records)
         # format it
-        threshold= session.get("compare_two_threshold_%s_%s"\
+        threshold = session.get("compare_two_threshold_%s_%s"\
                                %(coder1_id, coder2_id),
                                app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"])
         df = highlight_compare_two_discrepancy(df, threshold)
@@ -604,8 +610,10 @@ def compare_three():
                                         message="Coder 3 must be different from "\
                                                 "Coder1 and Coder2's files")
 
-            coder3_timestsamp_unit = session.get("%s_target_timestamp_unit"%coder3_id)
-            diff_threshold = session.get("compare_two_threshold_%s_%s"%(coder1_id, coder2_id))
+            coder3_timestsamp_unit \
+                = session.get("%s_target_timestamp_unit"%coder3_id)
+            discrepancy_threshold \
+                = session.get("compare_two_threshold_%s_%s"%(coder1_id, coder2_id))
 
             coder3_summary_records = session.get("%s_summary_records"%coder3_id, [])
             if not len(coder3_summary_records):
@@ -626,7 +634,7 @@ def compare_three():
                                  coder1_timestsamp_unit,
                                  coder3_summary_records, 
                                  coder3_timestsamp_unit,
-                                 threshold=diff_threshold)
+                                 threshold=discrepancy_threshold)
         if not comparison_status:  # comparison failed
             return render_template("error.html", message=error_message)
 

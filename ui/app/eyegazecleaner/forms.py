@@ -1,6 +1,7 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, SubmitField, SelectField, BooleanField, \
-                    IntegerField, MultipleFileField
+from wtforms import StringField, SubmitField, SelectField, \
+                    IntegerField
+from wtforms.validators import DataRequired
 from flask_wtf.file import FileField, FileAllowed
 from app import app
 from app.eyegazecleaner.utils import rearrange_codes
@@ -66,6 +67,9 @@ class CompareTwoInput(FlaskForm):
     coder2 = SelectField("Select coder 2 file", choices=[])
     coder2_id = StringField("Code 2 File ID", 
                              render_kw={"readonly": True})
+    discrepancy_threshold = IntegerField("Discrepancy Threshold",
+        default=app.config["DISCRENPANCY_THRESHOLD_MILLISECOND"],
+        validators=[DataRequired("please enter discrepancy threshold")])
     submit = SubmitField('Run Comparison')
     
     def __init__(self, files=[], *args, **kwargs):
