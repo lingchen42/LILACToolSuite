@@ -248,18 +248,45 @@ def get_trial_summary(df, code_col=app.config["CODE_COL"],
 
 def to_readable_ts(row, begin_code_col, unit="millisecond"):
     t = row[begin_code_col]
-    if unit == "frame":
-        # covert to millisecond
-        t = t * (100/3)
-    t = t / 1000
-    return str(timedelta(seconds=t))
+    try:
+        if unit == "frame":
+            # covert to millisecond
+            t = t * (100/3)
+        t = t / 1000
+        return str(timedelta(seconds=t))
+    except:
+        return t
+
+
+def get_trial_id_lookup_table(df1, df2,
+                              begin_code=app.config["BEGIN_CODE"],
+                              end_code=app.config["END_CODE"],
+                              trial_id_col=app.config["TRIAL_ID_COL"]):
+    coder2_trial_id_lookup_in_coder1 = {}
+    for _, row in df2.iterrows():
+        begin = int(row[begin_code])
+        end = int(row[end_code])
+        v1 = df1.apply(get_overlap_frac,
+                       args=(begin, end, begin_code, end_code), axis=1)
+        which_coder1_trial = df1.iloc[np.argmax(v1)][trial_id_col]
+        if np.max(v1) == 0:
+            coder2_trial_id_lookup_in_coder1[int(row[trial_id_col])] = -1
+        else:
+            coder2_trial_id_lookup_in_coder1[int(row[trial_id_col])] \
+                = int(which_coder1_trial)
+    return coder2_trial_id_lookup_in_coder1
+
+
+def map_trial_id(row, trial_id_lookup, 
+                 trial_id_col=app.config["TRIAL_ID_COL"]):
+    return trial_id_lookup.get(int(row[trial_id_col]), -1)
 
 
 def run_trial_summary_comparison_two(records1, unit1, 
-                                     records2, unit2, begin_code):
+                                     records2, unit2, begin_code,
+                                     trial_id_col=app.config["TRIAL_ID_COL"]):
     df1 = pd.DataFrame.from_dict(records1)
     df2 = pd.DataFrame.from_dict(records2)
-
     if unit1 != unit2:  # convert coder2 to use the same unit as coder1
         if (unit1 == "frame") \
                 and (unit2 == "millisecond"):
@@ -267,17 +294,24 @@ def run_trial_summary_comparison_two(records1, unit1,
         else:
             df2 = convert_frame_to_millisecond(df2, filetype="trial_summary") 
 
-    dft = df1.join(df2, lsuffix='.1', rsuffix='.2')
+    # map trial id
+    coder2_trial_id_lookup_in_coder1 = get_trial_id_lookup_table(df1, df2)
+    df2[trial_id_col] = df2.apply(map_trial_id, 
+        args=(coder2_trial_id_lookup_in_coder1, trial_id_col), axis=1)
+    dft = df1.set_index("trial_id").join(df2.set_index("trial_id"), 
+                        how="outer", lsuffix='.1', rsuffix='.2').reset_index()
+
+    # sort columns
     ordered_cols = []
     for c in df1.columns:
         if c == app.config["TRIAL_ID_COL"]:
-            dft[app.config["TRIAL_ID_COL"]] = dft["%s.1"%c]
             ordered_cols.append(c)
         else:
             if c == "attention.entire.trial":
                 ordered_cols.extend(["%s.1"%c, "%s.2"%c])
             else:
-                dft["%s.diff"%c] = np.abs(dft["%s.1"%c] - dft["%s.2"%c])
+                dft["%s.diff"%c] = np.abs(dft["%s.1"%c] - dft["%s.2"%c])\
+                                   .fillna(np.inf)
                 ordered_cols.extend(["%s.1"%c, "%s.2"%c, "%s.diff"%c])
 
     if unit1 == "millisecond":
@@ -294,7 +328,8 @@ def run_trial_summary_comparison_two(records1, unit1,
     diff_col_indices = [i for i, c in enumerate(dft.columns) \
                         if c.endswith(".diff")]
     
-    return dft.to_dict("records"), dft.columns, diff_col_indices
+    return dft.to_dict("records"), dft.columns, diff_col_indices, \
+            coder2_trial_id_lookup_in_coder1
 
 
 def has_discrepancy(row, diff_cols, threshold):
@@ -320,8 +355,8 @@ def highlight_compare_two_discrepancy(df, threshold,
     df["has_discrepancy"] = df.apply(has_discrepancy, 
                                     args=(diff_cols, threshold),
                                     axis=1)
-    # trail id is 1 indexed
-    has_discrepancy_trial_ids = np.where(df["has_discrepancy"] == 1)[0] + 1
+    has_discrepancy_trial_ids \
+        = list(df[df["has_discrepancy"]==1][trial_id_col].values)
     df = df.style.apply(highlight_compare_two_discrepancy_cell, 
                         threshold=threshold, subset=diff_cols)\
                   .apply(highlight_compare_two_discrepancy_trialid, 
@@ -329,7 +364,9 @@ def highlight_compare_two_discrepancy(df, threshold,
     return df
 
 
-def get_overlap_frac(row, begin, end, begin_code="B", end_code="S"):
+def get_overlap_frac(row, begin, end, 
+    begin_code=app.config["BEGIN_CODE"],
+    end_code=app.config["END_CODE"]):
     latest_begin = max(row[begin_code], begin)
     earliest_end = min(row[end_code], end)
     overlap = earliest_end - latest_begin
@@ -340,16 +377,16 @@ def get_overlap_frac(row, begin, end, begin_code="B", end_code="S"):
     
 
 def add_coder3_to_paircomparison(df12, df3,
-    begin_code="B",
-    end_code="S",
-    trial_id_col="trial_id"):
+    begin_code=app.config["BEGIN_CODE"],
+    end_code=app.config["END_CODE"],
+    trial_id_col=app.config["TRIAL_ID_COL"]):
     
     df3 = df3.copy()
     coder3_trial_id_in_coder1 = []
     to_fix_trials = []
     for ind, row in df3.iterrows():
-        begin = int(row["B"])
-        end = int(row["S"])
+        begin = int(row[begin_code])
+        end = int(row[end_code])
         coder3_trial_id = int(row[trial_id_col])
         v1 = df12.apply(get_overlap_frac, args=(begin, end, begin_code+'.1', end_code+'.1'), axis=1)
         which_coder1_trial = df12.iloc[np.argmax(v1)][trial_id_col]
@@ -449,6 +486,7 @@ def threeway_resolution(dft, df3, to_fix_trials, threshold,
     '''
     to_compare_cols = [c for c in df3.columns if c not in [trial_id_col,'attention.entire.trial']]
     resolution_records = []
+    print(dft.head(), dft.columns)
     for ind, trial_id in to_fix_trials:
         row = dft[dft[trial_id_col] == trial_id].iloc[0]
         record = {"index":ind, trial_id_col : trial_id}
@@ -563,10 +601,11 @@ def threeway_comparison(records12, unit1, records3, unit3, threshold,
 def combine_coding(compare_records, 
                    coder1_records, coder1_begin_code, code1_filename,
                    coder2_records, coder2_begin_code, code2_filename,
+                   coder2_trial_id_lookup_in_coder1={},
                    coder3_records=[], 
                    coder3_begin_code=app.config["BEGIN_CODE"],
                    code3_filename="NA",
-                   coder3_trial_id_lookup={},
+                   coder3_trial_id_lookup_in_coder1={},
                    trial_id_col=app.config["TRIAL_ID_COL"],
                    default_winner_coder=app.config["DEFAULT_WINNER_CODER"]):
     compare_df = pd.DataFrame.from_dict(compare_records)
@@ -579,10 +618,12 @@ def combine_coding(compare_records,
     df3 = pd.DataFrame.from_dict(coder3_records)
     df1 = assign_trial_id(df1, begin_code=coder1_begin_code)
     df2 = assign_trial_id(df2, begin_code=coder2_begin_code)
+    df2[trial_id_col] = df2.apply(map_trial_id, 
+            args=(coder2_trial_id_lookup_in_coder1, ), axis=1)
     if not df3.empty:
         df3 = assign_trial_id(df3, begin_code=coder3_begin_code)
-        df3[trial_id_col] = [coder3_trial_id_lookup.get(i, i) \
-                            for i in df3[trial_id_col].values]
+        df3[trial_id_col] = df3.apply(map_trial_id, 
+            args=(coder3_trial_id_lookup_in_coder1, ), axis=1)
     dfs = {1:df1, 2:df2, 3:df3}
     filenames= {1: code1_filename, 2:code2_filename, 3:code3_filename}
     dfts = []

@@ -52,6 +52,7 @@
     <hr>
     <div>
             <li><small>If coder 1 and coder 2 has different timestamp unit, coder 2 file will be converted to use coder 1's timestsamp unit</small></li>
+            <li><small>The coder 2's trial id will be mapped to coder1's trial id; If a trial cannot be mapped, its id will be shown as -1</small></li>
             <li><small>Export Combined Result will use coder 1 data as the final result</small></li>
     </div>
     <meta id="my-data" data-threshold="{{diff_threshhold}}" data-inds="{{diff_col_indices}}">
@@ -79,6 +80,10 @@
                             for (const [key, ind] of Object.entries(inds)) {
                                 var cellind = `td:eq(${ind})`;
                                 if( data[ind] > threshold){
+                                        $(row).find(cellind).css('background-color', '#FDCB63');
+                                        $(row).find('td:eq(0)').css('background-color', '#FDCB63');
+                                     };
+                                if( data[ind] == 'inf'){
                                         $(row).find(cellind).css('background-color', '#FDCB63');
                                         $(row).find('td:eq(0)').css('background-color', '#FDCB63');
                                      };

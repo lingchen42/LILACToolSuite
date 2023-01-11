@@ -485,7 +485,8 @@ def compare_two():
                 coder2_summary_records = coder2_summary_df.to_dict("records")
                 session["%s_summary_records"%coder2_id] = coder2_summary_records
 
-            records, columns, diff_col_indices = \
+            records, columns, diff_col_indices, \
+                coder2_trial_id_lookup_in_coder1 = \
                 run_trial_summary_comparison_two(coder1_summary_records, 
                                                 coder1_timestsamp_unit,
                                                 coder2_summary_records,
@@ -494,7 +495,10 @@ def compare_two():
                                                 )
             session["compare_two_records_%s_%s"%(coder1_id, coder2_id)] = records
             session["compare_two_columns_%s_%s"%(coder1_id, coder2_id)] = columns
-            session["compare_two_diffindies_%s_%s"%(coder1_id, coder2_id)] = diff_col_indices
+            session["compare_two_diffindies_%s_%s"%(coder1_id, coder2_id)] \
+                = diff_col_indices
+            session["%s_trial_id_lookup_in_%s"%(coder2_id, coder1_id)] \
+                = coder2_trial_id_lookup_in_coder1
 
     else:
         records = columns = []
@@ -713,6 +717,8 @@ def export_combined(coder1_id=None, coder2_id=None, coder3_id=None,
     if coder1_id and coder2_id:
         coder1_filename = coder_file_id_dict.get(coder1_id, coder1_id)
         coder2_filename = coder_file_id_dict.get(coder2_id, coder2_id)
+        coder2_trial_id_lookup_in_coder1 = \
+            session.get("%s_trial_id_lookup_in_%s"%(coder2_id, coder1_id), {})
 
         if coder3_id and (coder3_id != "NA"):
             # export compare three results
@@ -745,6 +751,7 @@ def export_combined(coder1_id=None, coder2_id=None, coder3_id=None,
             dft = combine_coding(compare_records, 
                     coder1_records, coder1_begin_code, coder1_filename,
                     coder2_records, coder2_begin_code, coder2_filename,
+                    coder2_trial_id_lookup_in_coder1,
                     coder3_records, coder3_begin_code, coder3_filename, 
                     coder3_trial_id_lookup)
             outfn = "CodingCombinedFromThreeCoders_%s-%s-%s.csv"\
@@ -771,7 +778,8 @@ def export_combined(coder1_id=None, coder2_id=None, coder3_id=None,
                                             app.config["BEGIN_CODE"])
             dft = combine_coding(compare_records, 
                     coder1_records, coder1_begin_code, coder1_filename,
-                    coder2_records, coder2_begin_code, coder2_filename)
+                    coder2_records, coder2_begin_code, coder2_filename,
+                    coder2_trial_id_lookup_in_coder1)
             outfn = "CodingCombinedFromTwoCoders_%s-%s.csv"\
                             %(os.path.splitext(coder1_filename)[0],
                             os.path.splitext(coder2_filename)[0])
