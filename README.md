@@ -2,6 +2,12 @@
 
 ![preview](https://github.com/lingchen42/LILACToolSuite/blob/main/assets/AppPreview.png)
 
+Try it out [here](http://3.21.40.13:8000/eyegazecleaner/input) 
+
+* Note that some of the functions that require access to local computer's file system won't work in this remotely deployed version. These functions are:
+  * LENASampler
+  * Batch Input of EyegazeCleaner
+
 ## Installation
 
 ### Prerequisite
