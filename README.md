@@ -5,7 +5,7 @@
 ## Installation
 
 ### Prerequisite
-* Install Anaconda (https://docs.anaconda.com/anaconda/install/index.html)
+* Install Miniconda (https://docs.conda.io/en/latest/miniconda.html)
 
 
 ### Install LILACToolSuite Web Application
