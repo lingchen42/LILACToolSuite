@@ -1,0 +1,11 @@
+cff-version: 1.0.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Chen"
+  given-names: "Ling"
+- family-names: "Su"
+  given-names: "Pumpki"
+title: "LILAC Lab Tool Suites"
+version: 1.0.0
+date-released: 2023-01-13
+url: "https://github.com/lingchen42/LILACToolSuite"
