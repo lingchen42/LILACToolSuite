@@ -1,3 +1,7 @@
+## App Preview
+
+![preview](https://github.com/lingchen42/LILACToolSuite/blob/main/assets/AppPreview.png)
+
 ## Installation
 
 ### Prerequisite
