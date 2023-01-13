@@ -49,7 +49,7 @@ If this fails, download xcode from Apply official website:https://developer.appl
 The default app running method (`flask run`) is good enough for a few users. But if you have multiple users, you may consider to use `gunicorn` to deploy this web app.
 ```
 cd LILACToolSuite/ui
-gunicorn -w 4 'app:app'
+gunicorn -w 4 -b 0.0.0.0 'app:app'
 ```
 
 
