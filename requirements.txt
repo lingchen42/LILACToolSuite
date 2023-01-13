@@ -10,3 +10,4 @@ Flask-Session
 plotly
 moviepy==1.0.3
 XlsxWriter
+gunicorn
