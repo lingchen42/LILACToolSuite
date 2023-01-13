@@ -50,6 +50,13 @@ gunicorn -w 4 'app:app'
 
 
 ## Cite this work
+* APA
+```
+Chen, L., & Su, P. (2023). LILAC Lab Tool Suites (Version 1.0.0) [Computer software]. https://github.com/lingchen42/LILACToolSuite
+```
+
+* BibTex
+```
 @software{Chen_LILAC_Lab_Tool_2023,
 author = {Chen, Ling and Su, Pumpki},
 month = {1},
@@ -58,3 +65,4 @@ url = {https://github.com/lingchen42/LILACToolSuite},
 version = {1.0.0},
 year = {2023}
 }
+```
