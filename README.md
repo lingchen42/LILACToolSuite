@@ -40,7 +40,7 @@ conda activate lilacsuite
 
 # set IMAGEIO_FFMPEG_EXE to the downloaded ffmpeg binary executable; 
 # PLEASE CHANGE THIS ACCORDINGLY
-export IMAGEIO_FFMPEG_EXE=export IMAGEIO_FFMPEG_EXE=/Users/lilaclab/Downloads/ffmpeg
+export IMAGEIO_FFMPEG_EXE=export IMAGEIO_FFMPEG_EXE=/Users/lilaclab/Documents/LILACToolSuite/ui/ffmpeg
 
 # cd into the source code
 cd LILACToolSuite/ui
