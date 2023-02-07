@@ -12,6 +12,8 @@ Try it out [here](http://3.21.40.13:8000/eyegazecleaner/input)
 
 ### Prerequisite
 * Install Miniconda (https://docs.conda.io/en/latest/miniconda.html)
+* Install ffmpeg (https://www.ffmpeg.org/download.html)
+ * ffmpeg is required to use LENASampler.
 
 
 ### Install LILACToolSuite Web Application
@@ -33,6 +35,12 @@ pip install -r requirements.txt
 
 ### Run LILACToolSuite on your local machine
 ```
+# make sure lilacsuite conda environment is activated
+conda activate lilacsuite
+
+# set IMAGEIO_FFMPEG_EXE to the downloaded ffmpeg binary executable.
+export IMAGEIO_FFMPEG_EXE=/Users/lilaclab/Downloads/ffmpeg
+
 # cd into the source code
 cd LILACToolSuite/ui
 flask run --port 5001
