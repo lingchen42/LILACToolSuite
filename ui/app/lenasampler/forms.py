@@ -8,10 +8,10 @@ from app import app
 
 
 class DataInput(FlaskForm):
-    fn = FileField("Upload a LENAExport csv file (must start with sampleID_, such as M001_XXX.csv)",
+    fn = FileField("Upload a exported LENA csv file",
                     validators=[FileAllowed(['csv'],
                                  "Only csv file is accepted")])
-    audio_dir = StringField("LENA Audio File Folder (contains WAV audio files, no child directory allowed)") 
+    audio_dir = StringField("LENA Audio File Folder (contains .wav audio files)") 
     submit = SubmitField('Upload')
 
 

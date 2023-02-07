@@ -36,6 +36,10 @@ def data():
         if fn:
             filename = secure_filename(fn.filename)
             session["filename"] = filename 
+            idprefix = get_id_prefix(filename)
+            if not idprefix:
+                idprefix = get_random_id()
+            session["idprefix"] = idprefix
             with tempfile.NamedTemporaryFile() as tmp:
                 fn.save(tmp.name)
                 try:
@@ -78,7 +82,6 @@ def view_data():
 
 @bp.route('/quality_check', methods=['GET', 'POST'])
 def quality_check():
-    columns = session.get('columns', [])
     records = session.get('records', [])
     quality_summary_columns = session.get("quality_summary_columns", [])
     quality_summary_records = session.get("quality_summary_records", [])
@@ -87,10 +90,8 @@ def quality_check():
     audio_dir = session.get('audio_dir', None)
     itsfilecol = app.config["ITS_FILENAME_COL"]
     durationcol = app.config["DURATION_COL"]
-    idprefix = session.get("filename", "").split("_")[0]
     dft_summary, dft_per_file, matched_itsfiles, is_perfect_match \
-        = run_quality_check(records, audio_dir, itsfilecol, durationcol, 
-                            idprefix)
+        = run_quality_check(records, audio_dir, itsfilecol, durationcol)
     quality_summary_columns = dft_summary.columns
     quality_summary_records = dft_summary.to_dict("records")
     quality_perfile_columns = dft_per_file.columns
@@ -187,9 +188,11 @@ def sample2():
 
     for col in sampling_criteria_cols :
         setattr(SamplingForm, "%s_min_value"%col, 
-            IntegerField("%s min value (>=, %s median is %s)"%(col, col, dft[col].median())))
+            IntegerField("%s min value (>=, %s median %.1f, mean %.1f)"\
+                        %(col, col, dft[col].median(), dft[col].mean())))
         setattr(SamplingForm, "%s_max_value"%col,
-            IntegerField("%s max value (<=, %s median is %s)"%(col, col, dft[col].median())))
+            IntegerField("%s max value (<=, %s median %.1f, mean %.1f)"\
+                        %(col, col, dft[col].median(), dft[col].mean())))
     setattr(SamplingForm, "submit", SubmitField('Confirm'))
     form = SamplingForm()
 
@@ -234,7 +237,8 @@ def export_sampled_audio():
     df = pd.DataFrame.from_records(sampled_records)
     df_ori = pd.DataFrame.from_records(records)
     audiodir = session.get('audio_dir', None)
-    idprefix = session.get("filename", "").split("_")[0]
+    idprefix = session.get("idprefix", "")
+    idprefix = idprefix.strip("_") # remove any trailing _
     itsfilecol = app.config["ITS_FILENAME_COL"]
     starttimecol = app.config["START_TIME_COL"]
     durationcol = app.config["DURATION_COL"]
