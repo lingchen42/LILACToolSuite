@@ -15,18 +15,23 @@ def parse_time_row(row, col):
     return parse_time(time_str)
 
 
-def detect_gap(fn, threshold=1, its_col='ITS_File_Name'):
+def detect_gap(fn=None, threshold=2, its_col='ITS_File_Name'):
     '''
     params:
+        fn: dataframe filepath or dataframe
         threshold: > threshold seconds gap in recording is called gap in recording
     return: dataframe recording gaps in file
     '''
-    if fn.endswith('.csv'):
-        df = pd.read_csv(fn)
-    elif fn.endswith('.xlsx'):
-        df = pd.read_excel(fn, engine='openpyxl')
+    if isinstance(fn, str):
+        if fn.endswith('.csv'):
+            df = pd.read_csv(fn)
+        elif fn.endswith('.xlsx'):
+            df = pd.read_excel(fn, engine='openpyxl')
+        else:
+            raise NotImplementedError(f"The file type of {fn} must be .csv or .xlsx")
     else:
-        raise NotImplementedError(f"The file type of {fn} must be .csv or .xlsx")
+        df = fn
+        fn = 'Unknown'
 
     records = []
     grped = df.groupby(its_col)
@@ -56,7 +61,7 @@ def detect_gap(fn, threshold=1, its_col='ITS_File_Name'):
     return pd.DataFrame(records), len(grped.groups.keys())
 
 
-def detect_gap_wrapper(fns, threshold=1, its_col='ITS_File_Name'):
+def detect_gap_wrapper(fns, threshold=2, its_col='ITS_File_Name'):
     '''
     params:
         threshold: > threshold seconds gap in recording is called gap in recording
@@ -67,14 +72,23 @@ def detect_gap_wrapper(fns, threshold=1, its_col='ITS_File_Name'):
     for fn in fns:
         print(f'Detecting gaps in {fn}')
         df, n_its = detect_gap(fn, threshold, its_col)
-        r = {
-            'Filename': os.path.basename(fn),
-            'N_ItsFile': n_its,
-            'N_ItsFile_with_gap': len(df['ItsFile'].value_counts()),
-            'ItsFile_with_gap': ",".join(list(df['ItsFile'].unique())),
-            'Filepath': os.path.abspath(fn)
-            
-        }
+        if len(df):
+            r = {
+                'Filename': os.path.basename(fn),
+                'N_ItsFile': n_its,
+                'N_ItsFile_with_gap': len(df['ItsFile'].value_counts()),
+                'ItsFile_with_gap': ",".join(list(df['ItsFile'].unique())),
+                'Filepath': os.path.abspath(fn)
+                
+            }
+        else:
+            r = {
+                'Filename': os.path.basename(fn),
+                'N_ItsFile': n_its,
+                'N_ItsFile_with_gap': 0,
+                'ItsFile_with_gap': "",
+                'Filepath': os.path.abspath(fn)
+            }
         summary.append(r)
         dfs.append(df)
     df = pd.concat(dfs)

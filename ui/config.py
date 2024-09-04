@@ -15,6 +15,7 @@ class Config(object):
     # lenasampler settings
     ITS_FILENAME_COL = "ITS_File_Name"
     START_TIME_COL = "StartTime"
+    END_TIME_COL = "EndTime"
     DURATION_COL = "Duration_Secs"
     DEFAULT_FILTER_NUM_COLUMNS = ["Duration_Secs", "Silence"]
     SAMPLING_CRITERIA_COLS = ["CT_COUNT"]

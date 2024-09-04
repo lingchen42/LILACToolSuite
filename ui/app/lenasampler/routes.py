@@ -16,6 +16,11 @@ from app.lenasampler.utils import *
 
 @bp.route('/data', methods=['GET', 'POST'])
 def data():
+    itsfilecol = app.config["ITS_FILENAME_COL"]
+    starttimecol = app.config["START_TIME_COL"]
+    endtimecol = app.config["END_TIME_COL"]
+    durationcol = app.config["DURATION_COL"]
+
     form = DataInput()
     records = session.get('records', [])
     columns = session.get('columns', [])
@@ -43,8 +48,10 @@ def data():
             with tempfile.NamedTemporaryFile() as tmp:
                 fn.save(tmp.name)
                 try:
-                    dft = pd.read_csv(tmp.name) 
-                    dft = dft.reset_index()
+                    #dft = pd.read_csv(tmp.name)
+                    #dft = dft.reset_index()
+                    dft = preprocess(dft, itsfilecol, starttimecol, 
+                                     endtimecol, durationcol)
                     columns = list(dft.columns)
                     records = dft.to_dict("records")
                     session['columns'] = columns
@@ -241,6 +248,7 @@ def export_sampled_audio():
     idprefix = idprefix.strip("_") # remove any trailing _
     itsfilecol = app.config["ITS_FILENAME_COL"]
     starttimecol = app.config["START_TIME_COL"]
+    endtimecol = app.config["END_TIME_COL"]
     durationcol = app.config["DURATION_COL"]
 
     form = ExportForm()
@@ -250,7 +258,7 @@ def export_sampled_audio():
     if form.validate_on_submit():
         outdir = "%s_SampledAudioSegments_%s"%(idprefix, uuid.uuid4())
         df = prepare_audio_files(df, df_ori, audiodir, outdir, idprefix, 
-                                itsfilecol, starttimecol, durationcol)
+                                itsfilecol, starttimecol, endtimecol, durationcol)
         # prepare zipfile for download
         zipout = outdir + ".zip"
         with ZipFile(zipout, "w", zipfile.ZIP_DEFLATED) as zipf:

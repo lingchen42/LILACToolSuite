@@ -7,6 +7,7 @@ import zipfile
 from zipfile import ZipFile
 from tqdm import tqdm
 from moviepy.editor import *
+from app.lenasampler.detect_its_gap import detect_gap, parse_time_row
 
 
 def get_random_id():
@@ -19,6 +20,21 @@ def get_id_prefix(fn):
         return "%s_"%id_prefix[0]
     else:
         return ""
+        
+
+def preprocess(fn, itsfilecol, starttimecol, endtimecol, durationcol):
+    df = pd.read_csv(fn).reset_index()
+    df['StartTime_ts'] = df.apply(parse_time_row, args=(starttimecol, ), axis=1)
+    df['EndTime_ts'] = df.apply(parse_time_row, args=(endtimecol, ), axis=1)
+    
+    for its_file in df[itsfilecol].unique():
+        dft = df[df[itsfilecol]==its_file].copy()
+        l = np.array(dft.sort_values('StartTime_ts').index)
+        ind = np.where(sorted(l) != l)[0]
+        assert len(ind) == 0, \
+            f"{its_file} time is not sorted. Please make sure the file is correct!"
+        df.loc[dft.index, 'RelativeStart'] = dft[durationcol].cumsum() - dft[durationcol]
+    return df
 
 
 def remove_audio_fn_prefix(fn):
@@ -131,6 +147,12 @@ def check_audio_duration_match(df, audio_dir, matched_files,
 
 def run_quality_check(records, audio_dir, itsfile_col, duration_col):
     df = pd.DataFrame(records)
+    its_gap_records, n_itsfile = detect_gap(df,  threshold=1, its_col=itsfile_col)
+    if len(its_gap_records):
+        its_with_gaps = ",".join(list(df[gap_records].unique()))
+    else:
+        its_with_gaps = ""
+        
     its_file_names = df[itsfile_col].values
     # does the its file column correspond to the audio wav file?
     missing_files, extra_files, matched_files, is_perfect_match \
@@ -143,7 +165,11 @@ def run_quality_check(records, audio_dir, itsfile_col, duration_col):
         {"Item": "WAV files without corresponding ITS files",
          "Value": ", ".join(extra_files), "Notes": ''},
         {"Item": "Matched ITS and WAV files",
-         "Value": ", ".join(matched_files), "Notes": ''}
+         "Value": ", ".join(matched_files), "Notes": ''},
+        {"Item": "ITS file with time gaps",
+         "Value": its_with_gaps, 
+         "Notes": 'Need to be extra careful at checking the video quality for segments from this file'
+        }
     ]
     dft_summary = pd.DataFrame(quality_records)
     dft_summary = dft_summary.reset_index()
@@ -158,12 +184,6 @@ def run_quality_check(records, audio_dir, itsfile_col, duration_col):
                      for fn in matched_files]
 
     return dft_summary, dft_per_file, matched_itsfiles, is_perfect_match
-
-
-def parse_time(time_str):
-    time_str = time_str.split("(")[0].strip()
-    ts = pd.to_datetime(time_str)
-    return ts
 
 
 def extract_from_audio_file(its_file, audiodir, start, duration,
@@ -181,7 +201,7 @@ def extract_from_audio_file(its_file, audiodir, start, duration,
 
 
 def prepare_audio_files(df, df_ori, audiodir, outdir, idprefix,
-                        itsfilecol, starttimecol, durationcol):
+                        itsfilecol, starttimecol, endtimecol, durationcol):
     idprefix = idprefix.strip("_")  # remove any trailing _
     df = df.sort_values("index")
     if os.path.exists(outdir):  # remove existing outdir if there is one
@@ -193,17 +213,16 @@ def prepare_audio_files(df, df_ori, audiodir, outdir, idprefix,
     outfns = []
     for _, row in df.iterrows():
         its_file = row[itsfilecol]
-        its_file_start = df_ori[df_ori[itsfilecol]==its_file][starttimecol].values[0]
-        its_file_start = parse_time(its_file_start) 
-        segment_start = row[starttimecol]
-        segment_start = parse_time(segment_start)
-        segment_relative_start = (segment_start - its_file_start).seconds
+        dft = its_dft[its_file]
+        segment_relative_start = row['RelativeStart']
+        segment_start = row['StartTime_ts']
         duration = row[durationcol]
         relative_start_time.append(segment_relative_start) 
         outfn = extract_from_audio_file(its_file, audiodir, 
                                         segment_relative_start, duration,
                                         str(segment_start), outdir, row["index"]) 
         outfns.append(os.path.basename(outfn))
+
     df["segment_relative_start_time"] = relative_start_time
     df["segment_filename"] = outfns
     df.to_csv(os.path.join(outdir, "%s_SampledAudioSegmentsMetadata.csv"%idprefix))
