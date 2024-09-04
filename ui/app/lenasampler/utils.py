@@ -3,6 +3,7 @@ import re
 import uuid
 import shutil
 import pandas as pd
+import numpy as np
 import zipfile
 from zipfile import ZipFile
 from tqdm import tqdm
@@ -34,6 +35,7 @@ def preprocess(fn, itsfilecol, starttimecol, endtimecol, durationcol):
         assert len(ind) == 0, \
             f"{its_file} time is not sorted. Please make sure the file is correct!"
         df.loc[dft.index, 'RelativeStart'] = dft[durationcol].cumsum() - dft[durationcol]
+    df['RelativeStart'] = df['RelativeStart'].astype(int)
     return df
 
 
@@ -149,7 +151,7 @@ def run_quality_check(records, audio_dir, itsfile_col, duration_col):
     df = pd.DataFrame(records)
     its_gap_records, n_itsfile = detect_gap(df,  threshold=1, its_col=itsfile_col)
     if len(its_gap_records):
-        its_with_gaps = ",".join(list(df[gap_records].unique()))
+        its_with_gaps = ",".join(list(its_gap_records["ItsFile"].unique()))
     else:
         its_with_gaps = ""
         
@@ -213,7 +215,6 @@ def prepare_audio_files(df, df_ori, audiodir, outdir, idprefix,
     outfns = []
     for _, row in df.iterrows():
         its_file = row[itsfilecol]
-        dft = its_dft[its_file]
         segment_relative_start = row['RelativeStart']
         segment_start = row['StartTime_ts']
         duration = row[durationcol]

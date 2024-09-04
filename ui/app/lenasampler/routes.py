@@ -50,7 +50,7 @@ def data():
                 try:
                     #dft = pd.read_csv(tmp.name)
                     #dft = dft.reset_index()
-                    dft = preprocess(dft, itsfilecol, starttimecol, 
+                    dft = preprocess(tmp.name, itsfilecol, starttimecol, 
                                      endtimecol, durationcol)
                     columns = list(dft.columns)
                     records = dft.to_dict("records")
